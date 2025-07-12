@@ -10,7 +10,7 @@ export interface ICombinatorOpts {
   fps?: number;
   bgColor?: string;
   videoCodec?: string;
-  audioCodec?: string;
+  audioCodec?: 'opus' | 'aac';
   opusConfig?: object;
   /**
    * false 合成的视频文件中排除音轨
@@ -91,20 +91,13 @@ export class Combinator {
           })
         ).supported ??
           false) &&
-        ((
-          await self.AudioEncoder.isConfigSupported({
-            codec: DEFAULT_AUDIO_CONF.codec,
-            sampleRate: DEFAULT_AUDIO_CONF.sampleRate,
-            numberOfChannels: DEFAULT_AUDIO_CONF.channelCount,
-          })
-        ).supported) ||
         (
           await self.AudioEncoder.isConfigSupported({
-            codec: args.audioCodec,
+            codec: args.audioCodec ?? DEFAULT_AUDIO_CONF.codec,
             sampleRate: DEFAULT_AUDIO_CONF.sampleRate,
             numberOfChannels: DEFAULT_AUDIO_CONF.channelCount,
           })
-        ).supported)) ??
+        ).supported) ??
       false
     );
   }
