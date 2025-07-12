@@ -10,6 +10,8 @@ export interface ICombinatorOpts {
   fps?: number;
   bgColor?: string;
   videoCodec?: string;
+  audioCodec?: string;
+  opusConfig?: object;
   /**
    * false 合成的视频文件中排除音轨
    */
@@ -66,6 +68,7 @@ export class Combinator {
   static async isSupported(
     args: {
       videoCodec?: string;
+      audioCodec?: string;
       width?: number;
       height?: number;
       bitrate?: number;
@@ -88,13 +91,20 @@ export class Combinator {
           })
         ).supported ??
           false) &&
-        (
+        ((
           await self.AudioEncoder.isConfigSupported({
             codec: DEFAULT_AUDIO_CONF.codec,
             sampleRate: DEFAULT_AUDIO_CONF.sampleRate,
             numberOfChannels: DEFAULT_AUDIO_CONF.channelCount,
           })
-        ).supported) ??
+        ).supported) ||
+        (
+          await self.AudioEncoder.isConfigSupported({
+            codec: args.audioCodec,
+            sampleRate: DEFAULT_AUDIO_CONF.sampleRate,
+            numberOfChannels: DEFAULT_AUDIO_CONF.channelCount,
+          })
+        ).supported)) ??
       false
     );
   }
@@ -139,6 +149,8 @@ export class Combinator {
         width: 0,
         height: 0,
         videoCodec: 'avc1.42E032',
+        audioCodec: 'aac',
+        opusConfig: {},
         audio: true,
         bitrate: 5e6,
         fps: 30,
@@ -177,7 +189,7 @@ export class Combinator {
   }
 
   #startRecodeMux(duration: number) {
-    const { fps, width, height, videoCodec, bitrate, audio, metaDataTags } =
+    const { fps, width, height, videoCodec, audioCodec, opusConfig, bitrate, audio, metaDataTags } =
       this.#opts;
     const recodeMuxer = recodemux({
       video: this.#hasVideoTrack
@@ -195,7 +207,8 @@ export class Combinator {
         audio === false
           ? null
           : {
-              codec: 'aac',
+              codec: audioCodec,
+              opusConfig: opusConfig,
               sampleRate: DEFAULT_AUDIO_CONF.sampleRate,
               channelCount: DEFAULT_AUDIO_CONF.channelCount,
             },

@@ -29,6 +29,7 @@ interface IRecodeMuxOpts {
    */
   audio: {
     codec: 'opus' | 'aac';
+    opusConfig: object;
     sampleRate: number;
     channelCount: number;
   } | null;
@@ -358,6 +359,16 @@ function createVideoEncoder(
   return encoder;
 }
 
+//codec mapping
+const codecTypeMap = {
+  'aac': "m4a",
+  'opus': "Opus"
+},
+codecMap = {
+  'aac': "mp4a.40.2",
+  'opus': "opus"
+};
+
 function encodeAudioTrack(
   audioOpts: NonNullable<IRecodeMuxOpts['audio']>,
   mp4File: MP4File,
@@ -368,7 +379,8 @@ function encodeAudioTrack(
     samplerate: audioOpts.sampleRate,
     channel_count: audioOpts.channelCount,
     hdlr: 'soun',
-    type: audioOpts.codec === 'aac' ? 'mp4a' : 'Opus',
+    //map codec to type
+    type: codecTypeMap[audioOpts.codec],
     name: 'Track created with WebAV',
   };
 
@@ -385,7 +397,9 @@ function encodeAudioTrack(
   });
 
   const encoderConf = {
-    codec: audioOpts.codec === 'aac' ? 'mp4a.40.2' : 'opus',
+    //map codec to AudioEncoder codec
+    codec: codecMap[audioOpts.codec],
+    opus: audioOpts.opusConfig,
     sampleRate: audioOpts.sampleRate,
     numberOfChannels: audioOpts.channelCount,
     bitrate: 128_000,
