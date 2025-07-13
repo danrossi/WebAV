@@ -361,7 +361,7 @@ function createVideoEncoder(
 
 //codec mapping
 const codecTypeMap = {
-  'aac': "m4a",
+  'aac': "mp4a",
   'opus': "Opus"
 },
 codecMap = {
