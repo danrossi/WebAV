@@ -1,12 +1,12 @@
-import { MP4Info, MP4Sample } from '@webav/mp4box.js';
-import { audioResample, extractPCM4AudioData, sleep } from '../av-utils';
 import { Log } from '@webav/internal-utils';
+import { MP4Info, MP4Sample } from '@webav/mp4box.js';
+import { file, tmpfile, write } from 'opfs-tools';
+import { audioResample, extractPCM4AudioData, sleep } from '../av-utils';
 import {
   extractFileConfig,
   quickParseMP4File,
 } from '../mp4-utils/mp4box-utils';
 import { DEFAULT_AUDIO_CONF, IClip } from './iclip';
-import { file, tmpfile, write } from 'opfs-tools';
 
 let CLIP_ID = 0;
 
@@ -560,8 +560,19 @@ async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
     (_, type, samples) => {
       if (type === 'video') {
         if (videoDeltaTS === -1) videoDeltaTS = samples[0].dts;
-        for (const s of samples) {
-          videoSamples.push(normalizeTimescale(s, videoDeltaTS, 'video'));
+        let findedFirstSync = false;
+        for (let i = 0; i < samples.length; i++) {
+          const s = samples[i];
+          if (!findedFirstSync && s.is_sync) {
+            findedFirstSync = true;
+            videoSamples.push(
+              normalizeTimescale(s, videoDeltaTS, 'video', true),
+            );
+          } else {
+            videoSamples.push(
+              normalizeTimescale(s, videoDeltaTS, 'video', false),
+            );
+          }
         }
       } else if (type === 'audio' && opts.audio) {
         if (audioDeltaTS === -1) audioDeltaTS = samples[0].dts;
@@ -588,38 +599,45 @@ async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
     decoderConf,
     headerBoxPos,
   };
+}
 
-  function normalizeTimescale(
-    s: MP4Sample,
-    delta = 0,
-    sampleType: 'video' | 'audio',
-  ) {
-    // todo: perf 丢弃多余字段，小尺寸对象性能更好
-    const idrOffset =
-      sampleType === 'video' && s.is_sync
-        ? idrNALUOffset(s.data, s.description.type)
-        : -1;
-    let offset = s.offset;
-    let size = s.size;
-    if (idrOffset >= 0) {
-      // 当 IDR 帧前面携带 SEI 数据可能导致解码失败
-      // 所以此处通过控制 offset、size 字段 跳过 SEI 数据
-      offset += idrOffset;
-      size -= idrOffset;
-    }
-    return {
-      ...s,
-      is_idr: idrOffset >= 0,
-      offset,
-      size,
-      cts: ((s.cts - delta) / s.timescale) * 1e6,
-      dts: ((s.dts - delta) / s.timescale) * 1e6,
-      duration: (s.duration / s.timescale) * 1e6,
-      timescale: 1e6,
-      // 音频数据量可控，直接保存在内存中
-      data: sampleType === 'video' ? null : s.data,
-    };
+function normalizeTimescale(
+  s: MP4Sample,
+  delta = 0,
+  sampleType: 'video' | 'audio',
+  isFirstSync?: boolean,
+) {
+  // todo: perf 丢弃多余字段，小尺寸对象性能更好
+  let offset = s.offset;
+  const isVideoSync = sampleType === 'video' && s.is_sync;
+  const idrOffset = isVideoSync
+    ? idrNALUOffset(s.data, s.description.type, offset)
+    : -1;
+
+  // 默认信任第一个关键帧 是 IDR 帧，兼容某些异常标注的视频文件
+  let is_idr = isFirstSync === true && isVideoSync;
+  let size = s.size;
+  if (idrOffset >= 0) {
+    // 当 IDR 帧前面包含非图像帧数据（如 SEI），可能导致解码失败
+    // 所以此处通过控制 offset、size 字段 跳过非图像帧数据
+    offset = idrOffset;
+    size -= idrOffset - offset;
+    // 非第一个关键帧，如果根据 naluType 判定是 IDR 帧，则设置 is_idr
+    is_idr = true;
   }
+
+  return {
+    ...s,
+    is_idr,
+    offset,
+    size,
+    cts: ((s.cts - delta) / s.timescale) * 1e6,
+    dts: ((s.dts - delta) / s.timescale) * 1e6,
+    duration: (s.duration / s.timescale) * 1e6,
+    timescale: 1e6,
+    // 音频数据量可控，直接保存在内存中
+    data: sampleType === 'video' ? null : s.data,
+  };
 }
 
 class VideoFrameFinder {
@@ -1335,11 +1353,12 @@ function decodeGoP(
 function idrNALUOffset(
   u8Arr: Uint8Array,
   type: MP4Sample['description']['type'],
+  startOffset: number,
 ) {
   if (type !== 'avc1' && type !== 'hvc1') return 0;
 
   const dv = new DataView(u8Arr.buffer);
-  let i = 0;
+  let i = startOffset;
   for (; i < u8Arr.byteLength - 4; ) {
     if (type === 'avc1' && (dv.getUint8(i + 4) & 0x1f) === 5) {
       return i;
@@ -1464,4 +1483,40 @@ function memoryUsageInfo() {
   } catch (err) {
     return {};
   }
+}
+
+if (import.meta.vitest) {
+  const { it, expect } = import.meta.vitest;
+
+  it('normalizeTimescale should compatible with anomalous data', () => {
+    // 视频容器数据异常时，直接使用容器的信息
+    // 找不到 IDR 帧时，直接信任容器的 offset、size
+    const s: MP4Sample = {
+      offset: 48,
+      size: 1000,
+      cts: 0,
+      dts: 0,
+      duration: 1e6,
+      timescale: 1000,
+      is_sync: true,
+      deleted: false,
+      // 异常的数据，offset = 48 时，并非 idr 帧，且 nalu 长度取值错误
+      data: new Uint8Array([
+        0, 0, 0, 21, 103, 100, 0, 40, 172, 43, 32, 15, 0, 68, 216, 8, 128, 0, 1,
+        244, 0, 0, 93, 192, 66, 0, 0, 0, 4, 104, 235, 143, 44, 0, 1, 134, 130,
+        101, 184, 4, 127, 135, 242, 7, 227, 27, 39, 154, 66, 5, 153, 27, 242,
+        78, 0, 168, 62, 16, 51, 168, 150, 136, 69, 7, 149, 83, 39, 27, 153, 130,
+        214, 70, 144, 194, 191, 167, 74, 7, 11, 97, 224, 27, 193, 2, 122, 234,
+        71, 95, 7, 192, 199, 28, 181, 215, 12, 201, 182, 43, 105, 91,
+      ]),
+      track_id: 1,
+      // @ts-ignore
+      description: { type: 'avc1' },
+      is_rap: false,
+    };
+    const normalized = normalizeTimescale(s, 0, 'video', true);
+    expect(normalized.offset).toBe(48);
+    expect(normalized.size).toBe(1000);
+    expect(normalized.is_sync).toBe(normalized.is_idr);
+  });
 }

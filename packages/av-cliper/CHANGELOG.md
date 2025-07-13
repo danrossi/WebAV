@@ -1,5 +1,20 @@
 # @webav/av-cliper
 
+## 1.1.8
+
+### Patch Changes
+
+- c99bd8e: fix: the first keyframe is trusted as an IDR frame by default for compatibility with certain video files that have abnormal annotations.
+- Updated dependencies [c99bd8e]
+  - @webav/internal-utils@1.1.8
+
+## 1.1.7
+
+### Patch Changes
+
+- 013e45c: fix: mp4clip compatible with anomalous data #424
+  - @webav/internal-utils@1.1.7
+
 ## 1.1.6
 
 ### Patch Changes
