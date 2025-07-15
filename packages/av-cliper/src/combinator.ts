@@ -1,7 +1,7 @@
-import { Log, EventTool, file2stream, recodemux } from '@webav/internal-utils';
-import { OffscreenSprite } from './sprite/offscreen-sprite';
+import { EventTool, file2stream, Log, recodemux } from '@webav/internal-utils';
 import { sleep } from './av-utils';
 import { DEFAULT_AUDIO_CONF } from './clips';
+import { OffscreenSprite } from './sprite/offscreen-sprite';
 
 export interface ICombinatorOpts {
   width?: number;
@@ -69,6 +69,7 @@ export class Combinator {
     args: {
       videoCodec?: string;
       audioCodec?: string;
+      hardwareAcceleration?: HardwarePreference;
       width?: number;
       height?: number;
       bitrate?: number;
@@ -85,6 +86,7 @@ export class Combinator {
         ((
           await self.VideoEncoder.isConfigSupported({
             codec: args.videoCodec ?? 'avc1.42E032',
+            hardwareAcceleration: args.hardwareAcceleration ?? 'no-preference',
             width: args.width ?? 1920,
             height: args.height ?? 1080,
             bitrate: args.bitrate ?? 7e6,
@@ -182,8 +184,17 @@ export class Combinator {
   }
 
   #startRecodeMux(duration: number) {
-    const { fps, width, height, videoCodec, audioCodec, opusConfig, bitrate, audio, metaDataTags } =
-      this.#opts;
+    const {
+      fps,
+      width,
+      height,
+      videoCodec,
+      audioCodec,
+      opusConfig,
+      bitrate,
+      audio,
+      metaDataTags,
+    } = this.#opts;
     const recodeMuxer = recodemux({
       video: this.#hasVideoTrack
         ? {
