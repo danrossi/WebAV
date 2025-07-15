@@ -377,28 +377,42 @@ function createVideoEncoder(
   return encoder;
 }
 
-//codec mapping
-const codecTypeMap = {
-  'aac': "mp4a",
-  'opus': "Opus"
-},
-codecMap = {
-  'aac': "mp4a.40.2",
-  'opus': "opus"
-};
+//codec info map entry
+interface AudioCodecInfoEntry {
+  type: string;
+  codecString: string;
+  code: number;
+}
+
+//codec info map to type, codec string and codec code
+const codecInfoMap: Map<string, AudioCodecInfoEntry> = new Map([
+  [
+    'aac',
+    {
+      type: 'mp4a',
+      codecString: 'mp4a.40.2',
+      code: 0x40,
+    } as AudioCodecInfoEntry,
+  ],
+  [
+    'opus',
+    { type: 'Opus', codecString: 'opus', code: 0xad } as AudioCodecInfoEntry,
+  ],
+]);
 
 function encodeAudioTrack(
   audioOpts: NonNullable<IRecodeMuxOpts['audio']>,
   mp4File: MP4File,
   avSyncEvtTool: EventTool<Record<'VideoReady' | 'AudioReady', () => void>>,
 ): AudioEncoder {
+  const codecInfoMapEntry = codecInfoMap.get(audioOpts.codec)!;
   const audioTrackOpts = {
     timescale: 1e6,
     samplerate: audioOpts.sampleRate,
     channel_count: audioOpts.channelCount,
     hdlr: 'soun',
     //map codec to type
-    type: codecTypeMap[audioOpts.codec],
+    type: codecInfoMapEntry.type,
     name: 'Track created with WebAV',
   };
 
@@ -416,7 +430,7 @@ function encodeAudioTrack(
 
   const encoderConf = {
     //map codec to AudioEncoder codec
-    codec: codecMap[audioOpts.codec],
+    codec: codecInfoMapEntry.codecString,
     opus: audioOpts.opusConfig,
     sampleRate: audioOpts.sampleRate,
     numberOfChannels: audioOpts.channelCount,
@@ -438,9 +452,13 @@ function encodeAudioTrack(
       if (trackId === -1) {
         // 某些设备不会输出 description
         const desc = meta?.decoderConfig?.description;
+
         trackId = mp4File.addTrack({
           ...audioTrackOpts,
-          description: desc == null ? undefined : createESDSBox(desc),
+          description:
+            desc == null
+              ? undefined
+              : createESDSBox(desc, codecInfoMapEntry.code),
         });
         avSyncEvtTool.emit('AudioReady');
         Log.info('AudioEncoder, audio track ready, trackId:', trackId);
@@ -463,9 +481,13 @@ function encodeAudioTrack(
  * 创建 ESDS 盒子（MPEG-4 Elementary Stream Descriptor）
  * ESDS 盒子用于描述 MPEG-4 的流信息，如编解码器类型、流类型、最大比特率、平均比特率等
  * @param config - 配置信息，可以是 `ArrayBuffer` 或 `ArrayBufferView` 类型
+ * @param codecConfig The audio codec code for m4a and opus
  * @return 返回一个 ESDS box
  */
-function createESDSBox(config: ArrayBuffer | ArrayBufferView) {
+function createESDSBox(
+  config: ArrayBuffer | ArrayBufferView,
+  codecCode: number,
+) {
   const configlen = config.byteLength;
   const buf = new Uint8Array([
     0x00, // version 0
@@ -482,7 +504,7 @@ function createESDSBox(config: ArrayBuffer | ArrayBufferView) {
 
     0x04, // descriptor_type
     0x12 + configlen, // length
-    0x40, // codec : mpeg4_audio
+    codecCode, // codec : mpeg4_audio
     0x15, // stream_type
     0x00,
     0x00,
