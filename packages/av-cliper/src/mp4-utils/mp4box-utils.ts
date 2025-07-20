@@ -1,19 +1,21 @@
 import {
+  BoxParser,
   createFile,
   DataStream,
-  esdsBox,
+  ISOFile,
   IsoFileOptions,
   MP4ArrayBuffer,
   mp4aSampleEntry,
-  MP4File,
-  trakBox,
   type Movie,
   type Sample,
-} from '@webav/mp4box2.js';
+} from 'mp4box';
 import { file } from 'opfs-tools';
 import { DEFAULT_AUDIO_CONF } from '../clips';
 
-export function extractFileConfig(file: MP4File, info: Movie) {
+const trakBox = (typeof BoxParser)['box']['trak'],
+  esdsBoxType = (typeof BoxParser)['box']['esds'];
+
+export function extractFileConfig(file: ISOFile, info: Movie) {
   const vTrack = info.videoTracks[0];
   const rs: {
     videoTrackConf?: IsoFileOptions;
@@ -72,7 +74,7 @@ export function extractFileConfig(file: MP4File, info: Movie) {
 }
 
 // track is H.264, H.265 or VPX.
-function parseVideoCodecDesc(track: trakBox): Uint8Array | undefined {
+function parseVideoCodecDesc(track: typeof trakBox): Uint8Array | undefined {
   for (const entry of track.mdia.minf.stbl.stsd.entries) {
     // @ts-expect-error
     const box = entry.avcC ?? entry.hvcC ?? entry.av1C ?? entry.vpcC;
@@ -85,7 +87,7 @@ function parseVideoCodecDesc(track: trakBox): Uint8Array | undefined {
   return undefined;
 }
 
-function getESDSBoxFromMP4File(file: MP4File, codec = 'mp4a') {
+function getESDSBoxFromMP4File(file: ISOFile, codec = 'mp4a') {
   const mp4aBox = file.moov?.traks
     .map((t) => t.mdia.minf.stbl.stsd.entries)
     .flat()
@@ -95,7 +97,7 @@ function getESDSBoxFromMP4File(file: MP4File, codec = 'mp4a') {
 }
 
 // 解决封装层音频信息标识错误，导致解码异常
-function parseAudioInfo4ESDSBox(esds: esdsBox) {
+function parseAudioInfo4ESDSBox(esds: typeof esdsBoxType) {
   const decoderConf = esds.esd.descs[0]?.descs[0];
   if (decoderConf == null) return {};
 
@@ -119,7 +121,7 @@ function parseAudioInfo4ESDSBox(esds: esdsBox) {
  */
 export async function quickParseMP4File(
   reader: Awaited<ReturnType<ReturnType<typeof file>['createReader']>>,
-  onReady: (data: { mp4boxFile: MP4File; info: Movie }) => void,
+  onReady: (data: { mp4boxFile: ISOFile; info: Movie }) => void,
   onSamples: (
     id: number,
     sampleType: 'video' | 'audio',

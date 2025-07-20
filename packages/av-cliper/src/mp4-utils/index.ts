@@ -1,11 +1,11 @@
 import { autoReadStream, file2stream, Log } from '@webav/internal-utils';
 import {
+  BoxParser,
   createFile,
   DataStream,
-  MP4File,
+  ISOFile,
   type Sample,
-  trakBox,
-} from '@webav/mp4box2.js';
+} from 'mp4box';
 import { tmpfile, write } from 'opfs-tools';
 import {
   concatPCMFragments,
@@ -18,12 +18,14 @@ import { DEFAULT_AUDIO_CONF } from '../clips';
 import { extractFileConfig } from './mp4box-utils';
 import { SampleTransform } from './sample-transform';
 
+const trakBox = (typeof BoxParser)['box']['trak'];
+
 function fixMP4BoxFileDuration(
-  inMP4File: MP4File,
+  inMP4File: ISOFile,
 ): () => Promise<ReadableStream<Uint8Array> | null> {
   let sendedBoxIdx = 0;
   const boxes = inMP4File.boxes;
-  const tracks: Array<{ track: trakBox; id: number }> = [];
+  const tracks: Array<{ track: typeof trakBox; id: number }> = [];
   let totalDuration = 0;
 
   async function write2TmpFile() {

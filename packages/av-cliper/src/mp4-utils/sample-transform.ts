@@ -4,7 +4,7 @@ import {
   MP4File,
   type Movie,
   type Sample,
-} from '@webav/mp4box2.js';
+} from 'mp4box';
 
 /**
  * 将原始字节流转换成 Sample 流

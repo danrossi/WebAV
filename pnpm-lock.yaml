@@ -172,6 +172,9 @@ importers:
       '@webav/mp4box.js':
         specifier: ^0.5.7
         version: 0.5.7
+      mp4box:
+        specifier: ^1.4.3
+        version: 1.4.3
       opfs-tools:
         specifier: ^0.7.2
         version: 0.7.2
@@ -190,7 +193,7 @@ importers:
     devDependencies:
       '@typescript/lib-dom':
         specifier: npm:@types/web
-        version: '@types/web@0.0.246'
+        version: '@types/web@0.0.251'
 
   packages/internal-utils:
     dependencies:
@@ -2221,8 +2224,8 @@ packages:
   '@types/use-sync-external-store@0.0.3':
     resolution: {integrity: sha512-EwmlvuaxPNej9+T4v5AuBPJa2x2UOJVdjCtDHgcDqitUeOtjnJKJ+apYjVcAoBEMjKW1VVFGZLUb5+qqa09XFA==}
 
-  '@types/web@0.0.246':
-    resolution: {integrity: sha512-TCeVQAgAophSXiipdERUYPbYIOn2sfhqEN/Zmr+rJGdWsBkEbYbzqNjOxS0GabsJyAOuZcoHOd7N6QX4zNlq0A==}
+  '@types/web@0.0.251':
+    resolution: {integrity: sha512-4CqrLodm2z9/lGI4Y8rpuzGiv+3uuECKfP2TqTp1tvVfEc0Ys/M+/h3Om8TlN1ax/Ldu1NSvaD/0plVPmD41Sw==}
 
   '@types/which@2.0.2':
     resolution: {integrity: sha512-113D3mDkZDjo+EeUEHCFy0qniNc1ZpecGiAU7WSo7YDoSzolZIQKpYFHrPpjkB2nuyahcKfrmLXeQlh7gqJYdw==}
@@ -6247,6 +6250,10 @@ packages:
 
   moment@2.30.1:
     resolution: {integrity: sha512-uEmtNhbDOrWPFS+hdjFCBfy9f2YoyzRpwcl+DqpC6taX21FzsTLQVbMV/W7PzNSX6x/bhC1zA3c2UQ5NzH6how==}
+
+  mp4box@1.4.3:
+    resolution: {integrity: sha512-NlcWVUtESY0QPW4P2/Nb7PEbLuV/72D5nkwYRFc2vTemCgDWKTntlY60/ohdaozhCv3JZcjkAEunhmKu6ALg5w==}
+    engines: {node: '>=20.8.1'}
 
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
@@ -11698,7 +11705,7 @@ snapshots:
 
   '@types/use-sync-external-store@0.0.3': {}
 
-  '@types/web@0.0.246': {}
+  '@types/web@0.0.251': {}
 
   '@types/which@2.0.2': {}
 
@@ -17036,6 +17043,8 @@ snapshots:
       ufo: 1.6.1
 
   moment@2.30.1: {}
+
+  mp4box@1.4.3: {}
 
   mri@1.2.0: {}
 
