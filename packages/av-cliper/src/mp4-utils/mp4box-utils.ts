@@ -3,18 +3,18 @@ import {
   createFile,
   DataStream,
   ISOFile,
-  IsoFileOptions,
   MP4ArrayBuffer,
   mp4aSampleEntry,
   Endianness,
+  type IsoFileOptions,
   type Movie,
   type Sample,
 } from 'mp4box';
 import { file } from 'opfs-tools';
 import { DEFAULT_AUDIO_CONF } from '../clips';
 
-const trakBox = BoxParser['box']['trak'],
-  esdsBoxType = BoxParser['box']['esds'];
+const trakBox = new BoxParser['box']['trak'],
+  esdsBoxType = new BoxParser['box']['esds'];
 
 export function extractFileConfig(file: ISOFile, info: Movie) {
   const vTrack = info.videoTracks[0];

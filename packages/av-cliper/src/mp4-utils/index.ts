@@ -5,7 +5,9 @@ import {
   DataStream,
   ISOFile,
   Endianness,
+  type IsoFileOptions,
   type Sample,
+  type SampleEntryFourCC
 } from 'mp4box';
 import { tmpfile, write } from 'opfs-tools';
 import {
@@ -19,9 +21,12 @@ import { DEFAULT_AUDIO_CONF } from '../clips';
 import { extractFileConfig } from './mp4box-utils';
 import { SampleTransform } from './sample-transform';
 
-const trakBox = BoxParser['box']['trak'];
+//const trakBox = BoxParser['box']['trak'];
 
-trakBox.
+const trakBox = new BoxParser['box']['trak'];
+//const trakBox = (typeof BoxParser)['box']['trak'];
+
+
 
 function fixMP4BoxFileDuration(
   inMP4File: ISOFile,
@@ -37,6 +42,7 @@ function fixMP4BoxFileDuration(
     // 释放引用，避免内存泄露
     // todo: use unsafeReleaseMP4BoxFile
     tracks.forEach(({ track, id }) => {
+    
       const s = track.samples.at(-1);
       if (s != null)
         totalDuration = Math.max(totalDuration, s.cts + s.duration);
@@ -132,9 +138,9 @@ function fixMP4BoxFileDuration(
 /**
  * EncodedAudioChunk | EncodedVideoChunk 转换为 MP4 addSample 需要的参数
  */
-function chunk2SampleOpts(
+function chunk2Mp4SampleOpts(
   chunk: EncodedAudioChunk | EncodedVideoChunk,
-): Sample & {
+): SampleOpts & {
   data: ArrayBuffer;
 } {
   const buf = new ArrayBuffer(chunk.byteLength);
@@ -297,7 +303,7 @@ function createMP4AudioSampleDecoder(
 // 是因为编码中途调用 AudioEncoder.flush ，会导致声音听起来卡顿
 function createMP4AudioSampleEncoder(
   aeConf: Parameters<AudioEncoder['configure']>[0],
-  onOutput: (s: ReturnType<typeof chunk2SampleOpts>) => void,
+  onOutput: (s: ReturnType<typeof chunk2Mp4SampleOpts>) => void,
 ) {
   const encoderConf = {
     codec: aeConf.codec,
@@ -307,7 +313,7 @@ function createMP4AudioSampleEncoder(
 
   const adEncoder = new AudioEncoder({
     output: (chunk) => {
-      onOutput(chunk2SampleOpts(chunk));
+      onOutput(chunk2Mp4SampleOpts(chunk));
     },
     error: (err) => {
       Log.error('AudioEncoder error:', err, ', config:', encoderConf);
@@ -419,13 +425,13 @@ export function mixinMP4AndAudio(
           vTrackId = outfile.addTrack(videoTrackConf);
         }
 
-        const safeAudioTrackConf = audioTrackConf ?? {
+        const safeAudioTrackConf: IsoFileOptions = audioTrackConf ?? {
           timescale: 1e6,
           samplerate: sampleRate,
           channel_count: DEFAULT_AUDIO_CONF.channelCount,
           hdlr: 'soun',
           name: 'SoundHandler',
-          type: 'mp4a',
+          type: 'mp4a' as SampleEntryFourCC,
         };
         if (aTrackId === 0) {
           aTrackId = outfile.addTrack(safeAudioTrackConf);
