@@ -1,7 +1,7 @@
+import { createFile, MP4ArrayBuffer } from '@webav/mp4box2.js';
+import { file, write } from 'opfs-tools';
 import { expect, test, vi } from 'vitest';
 import { MP4Clip } from '../mp4-clip';
-import { file, write } from 'opfs-tools';
-import mp4box, { MP4ArrayBuffer } from '@webav/mp4box.js';
 
 const mp4_123 = `//${location.host}/video/123.mp4`;
 
@@ -157,7 +157,7 @@ test('create instance by opfs file', async () => {
 
 test('get file header data', async () => {
   const clip = new MP4Clip((await fetch(mp4_123)).body!);
-  const boxfile = mp4box.createFile();
+  const boxfile = createFile();
   boxfile.onReady = vi.fn();
   const buf = (await clip.getFileHeaderBinData()) as MP4ArrayBuffer;
   buf.fileStart = 0;

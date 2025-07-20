@@ -1,23 +1,24 @@
-import mp4box, {
-  AudioTrackOpts,
-  ESDSBoxParser,
-  MP4ABoxParser,
+import {
+  createFile,
+  DataStream,
+  esdsBox,
+  IsoFileOptions,
   MP4ArrayBuffer,
+  mp4aSampleEntry,
   MP4File,
-  MP4Info,
-  MP4Sample,
-  TrakBoxParser,
-  VideoTrackOpts,
-} from '@webav/mp4box.js';
+  trakBox,
+  type Movie,
+  type Sample,
+} from '@webav/mp4box2.js';
 import { file } from 'opfs-tools';
 import { DEFAULT_AUDIO_CONF } from '../clips';
 
-export function extractFileConfig(file: MP4File, info: MP4Info) {
+export function extractFileConfig(file: MP4File, info: Movie) {
   const vTrack = info.videoTracks[0];
   const rs: {
-    videoTrackConf?: VideoTrackOpts;
+    videoTrackConf?: IsoFileOptions;
     videoDecoderConf?: Parameters<VideoDecoder['configure']>[0];
-    audioTrackConf?: AudioTrackOpts;
+    audioTrackConf?: IsoFileOptions;
     audioDecoderConf?: Parameters<AudioDecoder['configure']>[0];
   } = {};
   if (vTrack != null) {
@@ -71,16 +72,12 @@ export function extractFileConfig(file: MP4File, info: MP4Info) {
 }
 
 // track is H.264, H.265 or VPX.
-function parseVideoCodecDesc(track: TrakBoxParser): Uint8Array | undefined {
+function parseVideoCodecDesc(track: trakBox): Uint8Array | undefined {
   for (const entry of track.mdia.minf.stbl.stsd.entries) {
     // @ts-expect-error
     const box = entry.avcC ?? entry.hvcC ?? entry.av1C ?? entry.vpcC;
     if (box != null) {
-      const stream = new mp4box.DataStream(
-        undefined,
-        0,
-        mp4box.DataStream.BIG_ENDIAN,
-      );
+      const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
       box.write(stream);
       return new Uint8Array(stream.buffer.slice(8)); // Remove the box header.
     }
@@ -92,13 +89,13 @@ function getESDSBoxFromMP4File(file: MP4File, codec = 'mp4a') {
   const mp4aBox = file.moov?.traks
     .map((t) => t.mdia.minf.stbl.stsd.entries)
     .flat()
-    .find(({ type }) => type === codec) as MP4ABoxParser;
+    .find(({ type }) => type === codec) as mp4aSampleEntry;
 
   return mp4aBox?.esds;
 }
 
 // 解决封装层音频信息标识错误，导致解码异常
-function parseAudioInfo4ESDSBox(esds: ESDSBoxParser) {
+function parseAudioInfo4ESDSBox(esds: esdsBox) {
   const decoderConf = esds.esd.descs[0]?.descs[0];
   if (decoderConf == null) return {};
 
@@ -122,14 +119,14 @@ function parseAudioInfo4ESDSBox(esds: ESDSBoxParser) {
  */
 export async function quickParseMP4File(
   reader: Awaited<ReturnType<ReturnType<typeof file>['createReader']>>,
-  onReady: (data: { mp4boxFile: MP4File; info: MP4Info }) => void,
+  onReady: (data: { mp4boxFile: MP4File; info: Movie }) => void,
   onSamples: (
     id: number,
     sampleType: 'video' | 'audio',
-    samples: MP4Sample[],
+    samples: Sample[],
   ) => void,
 ) {
-  const mp4boxFile = mp4box.createFile(false);
+  const mp4boxFile = createFile(false);
   mp4boxFile.onReady = (info) => {
     onReady({ mp4boxFile, info });
     const vTrackId = info.videoTracks[0]?.id;

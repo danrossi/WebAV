@@ -5,6 +5,14 @@ import { externalizeDeps } from 'vite-plugin-externalize-deps';
 
 export default defineConfig({
   plugins: [dts({ rollupTypes: true }), externalizeDeps()],
+  resolve: {
+    alias: {
+      '@webav/mp4box2.js': resolve(
+        __dirname,
+        '../../../mp4box.js/dist/mp4box.all.js',
+      ),
+    },
+  },
   build: {
     sourcemap: true,
     lib: {

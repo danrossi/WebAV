@@ -1,28 +1,29 @@
-import mp4box, {
-  MP4File,
-  MP4Sample,
-  SampleOpts,
-  TrakBoxParser,
-} from '@webav/mp4box.js';
 import { autoReadStream, file2stream, Log } from '@webav/internal-utils';
 import {
-  extractPCM4AudioData,
+  createFile,
+  DataStream,
+  MP4File,
+  type Sample,
+  trakBox,
+} from '@webav/mp4box2.js';
+import { tmpfile, write } from 'opfs-tools';
+import {
+  concatPCMFragments,
   extractPCM4AudioBuffer,
+  extractPCM4AudioData,
   mixinPCM,
   ringSliceFloat32Array,
-  concatPCMFragments,
 } from '../av-utils';
 import { DEFAULT_AUDIO_CONF } from '../clips';
-import { SampleTransform } from './sample-transform';
 import { extractFileConfig } from './mp4box-utils';
-import { tmpfile, write } from 'opfs-tools';
+import { SampleTransform } from './sample-transform';
 
 function fixMP4BoxFileDuration(
   inMP4File: MP4File,
 ): () => Promise<ReadableStream<Uint8Array> | null> {
   let sendedBoxIdx = 0;
   const boxes = inMP4File.boxes;
-  const tracks: Array<{ track: TrakBoxParser; id: number }> = [];
+  const tracks: Array<{ track: trakBox; id: number }> = [];
   let totalDuration = 0;
 
   async function write2TmpFile() {
@@ -111,8 +112,8 @@ function fixMP4BoxFileDuration(
   function box2Buf(source: typeof boxes, startIdx: number): Uint8Array | null {
     if (startIdx >= source.length) return null;
 
-    const ds = new mp4box.DataStream();
-    ds.endianness = mp4box.DataStream.BIG_ENDIAN;
+    const ds = new DataStream();
+    ds.endianness = DataStream.BIG_ENDIAN;
 
     for (let i = startIdx; i < source.length; i++) {
       if (source[i] === null) continue;
@@ -126,9 +127,9 @@ function fixMP4BoxFileDuration(
 /**
  * EncodedAudioChunk | EncodedVideoChunk 转换为 MP4 addSample 需要的参数
  */
-function chunk2MP4SampleOpts(
+function chunk2SampleOpts(
   chunk: EncodedAudioChunk | EncodedVideoChunk,
-): SampleOpts & {
+): Sample & {
   data: ArrayBuffer;
 } {
   const buf = new ArrayBuffer(chunk.byteLength);
@@ -158,7 +159,7 @@ function chunk2MP4SampleOpts(
 export async function fastConcatMP4(
   streams: ReadableStream<Uint8Array>[],
 ): Promise<ReadableStream<Uint8Array>> {
-  const outfile = mp4box.createFile();
+  const outfile = createFile();
 
   const dumpFile = fixMP4BoxFileDuration(outfile);
   await concatStreamsToMP4BoxFile(streams, outfile);
@@ -262,7 +263,7 @@ function createMP4AudioSampleDecoder(
   adDecoder.configure(adConf);
 
   return {
-    decode: async (ss: MP4Sample[]) => {
+    decode: async (ss: Sample[]) => {
       ss.forEach((s) => {
         adDecoder.decode(
           new EncodedAudioChunk({
@@ -291,7 +292,7 @@ function createMP4AudioSampleDecoder(
 // 是因为编码中途调用 AudioEncoder.flush ，会导致声音听起来卡顿
 function createMP4AudioSampleEncoder(
   aeConf: Parameters<AudioEncoder['configure']>[0],
-  onOutput: (s: ReturnType<typeof chunk2MP4SampleOpts>) => void,
+  onOutput: (s: ReturnType<typeof chunk2SampleOpts>) => void,
 ) {
   const encoderConf = {
     codec: aeConf.codec,
@@ -301,7 +302,7 @@ function createMP4AudioSampleEncoder(
 
   const adEncoder = new AudioEncoder({
     output: (chunk) => {
-      onOutput(chunk2MP4SampleOpts(chunk));
+      onOutput(chunk2SampleOpts(chunk));
     },
     error: (err) => {
       Log.error('AudioEncoder error:', err, ', config:', encoderConf);
@@ -381,7 +382,7 @@ export function mixinMP4AndAudio(
     loop: audio.loop,
   });
 
-  const outfile = mp4box.createFile();
+  const outfile = createFile();
   const { stream: outStream, stop: stopOut } = file2stream(outfile, 500);
 
   let audioSampleDecoder: ReturnType<
@@ -477,7 +478,7 @@ export function mixinMP4AndAudio(
     return rs;
   }
 
-  async function addInputAudio2Track(vdieoSamples: MP4Sample[]) {
+  async function addInputAudio2Track(vdieoSamples: Sample[]) {
     const firstSamp = vdieoSamples[0];
     const lastSamp = vdieoSamples[vdieoSamples.length - 1];
     const pcmLength = Math.floor(
@@ -493,7 +494,7 @@ export function mixinMP4AndAudio(
     );
   }
 
-  async function mixinAudioSampleAndInputPCM(samples: MP4Sample[]) {
+  async function mixinAudioSampleAndInputPCM(samples: Sample[]) {
     if (audioSampleDecoder == null) return;
 
     // 1. 先解码mp4音频

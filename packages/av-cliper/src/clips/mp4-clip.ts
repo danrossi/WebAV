@@ -1,5 +1,5 @@
 import { Log } from '@webav/internal-utils';
-import { MP4Info, MP4Sample } from '@webav/mp4box.js';
+import { type Movie, type Sample } from '@webav/mp4box2.js';
 import { file, tmpfile, write } from 'opfs-tools';
 import { audioResample, extractPCM4AudioData, sleep } from '../av-utils';
 import {
@@ -33,7 +33,7 @@ interface MP4ClipOpts {
   __unsafe_hardwareAcceleration__?: HardwarePreference;
 }
 
-type ExtMP4Sample = Omit<MP4Sample, 'data'> & {
+type ExtSample = Omit<Sample, 'data'> & {
   is_idr: boolean;
   deleted?: boolean;
   data: null | Uint8Array;
@@ -105,9 +105,9 @@ export class MP4Clip implements IClip {
 
   #volume = 1;
 
-  #videoSamples: ExtMP4Sample[] = [];
+  #videoSamples: ExtSample[] = [];
 
-  #audioSamples: ExtMP4Sample[] = [];
+  #audioSamples: ExtSample[] = [];
 
   #videoFrameFinder: VideoFrameFinder | null = null;
   #audioFrameFinder: AudioFrameFinder | null = null;
@@ -449,8 +449,8 @@ export class MP4Clip implements IClip {
 
 function genMeta(
   decoderConf: MP4DecoderConf,
-  videoSamples: ExtMP4Sample[],
-  audioSamples: ExtMP4Sample[],
+  videoSamples: ExtSample[],
+  audioSamples: ExtSample[],
 ) {
   const meta = {
     duration: 0,
@@ -490,8 +490,8 @@ function genMeta(
 function genDecoder(
   decoderConf: MP4DecoderConf,
   localFileReader: LocalFileReader,
-  videoSamples: ExtMP4Sample[],
-  audioSamples: ExtMP4Sample[],
+  videoSamples: ExtSample[],
+  audioSamples: ExtSample[],
   volume: number,
 ) {
   return {
@@ -519,10 +519,10 @@ function genDecoder(
 }
 
 async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
-  let mp4Info: MP4Info | null = null;
+  let mp4Info: Movie | null = null;
   const decoderConf: MP4DecoderConf = { video: null, audio: null };
-  let videoSamples: ExtMP4Sample[] = [];
-  let audioSamples: ExtMP4Sample[] = [];
+  let videoSamples: ExtSample[] = [];
+  let audioSamples: ExtSample[] = [];
   let headerBoxPos: Array<{ start: number; size: number }> = [];
 
   let videoDeltaTS = -1;
@@ -602,7 +602,7 @@ async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
 }
 
 function normalizeTimescale(
-  s: MP4Sample,
+  s: Sample,
   delta = 0,
   sampleType: 'video' | 'audio',
   isFirstSync?: boolean,
@@ -644,7 +644,7 @@ class VideoFrameFinder {
   #dec: VideoDecoder | null = null;
   constructor(
     public localFileReader: LocalFileReader,
-    public samples: ExtMP4Sample[],
+    public samples: ExtSample[],
     public conf: VideoDecoderConfig,
   ) {}
 
@@ -878,7 +878,7 @@ class VideoFrameFinder {
   };
 }
 
-function findIndexOfSamples(time: number, samples: ExtMP4Sample[]) {
+function findIndexOfSamples(time: number, samples: ExtSample[]) {
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i];
     if (time >= s.cts && time < s.cts + s.duration) {
@@ -894,7 +894,7 @@ class AudioFrameFinder {
   #sampleRate;
   constructor(
     public localFileReader: LocalFileReader,
-    public samples: ExtMP4Sample[],
+    public samples: ExtSample[],
     public conf: AudioDecoderConfig,
     opts: { volume: number; targetSampleRate: number },
   ) {
@@ -1201,7 +1201,7 @@ function emitAudioFrames(
 }
 
 async function videosamples2Chunks(
-  samples: ExtMP4Sample[],
+  samples: ExtSample[],
   reader: Awaited<ReturnType<OPFSToolFile['createReader']>>,
 ): Promise<EncodedVideoChunk[]> {
   const first = samples[0];
@@ -1255,7 +1255,7 @@ function createVF2BlobConvtr(
   };
 }
 
-function splitVideoSampleByTime(videoSamples: ExtMP4Sample[], time: number) {
+function splitVideoSampleByTime(videoSamples: ExtSample[], time: number) {
   if (videoSamples.length === 0) return [];
   let gopStartIdx = 0;
   let gopEndIdx = 0;
@@ -1303,7 +1303,7 @@ function splitVideoSampleByTime(videoSamples: ExtMP4Sample[], time: number) {
   return [preSlice, postSlice];
 }
 
-function splitAudioSampleByTime(audioSamples: ExtMP4Sample[], time: number) {
+function splitAudioSampleByTime(audioSamples: ExtSample[], time: number) {
   if (audioSamples.length === 0) return [];
   let hitIdx = -1;
   for (let i = 0; i < audioSamples.length; i++) {
@@ -1352,7 +1352,7 @@ function decodeGoP(
 
 function idrNALUOffset(
   u8Arr: Uint8Array,
-  type: MP4Sample['description']['type'],
+  type: Sample['description']['type'],
   startOffset: number,
 ) {
   if (type !== 'avc1' && type !== 'hvc1') return 0;
@@ -1373,7 +1373,7 @@ function idrNALUOffset(
 }
 
 async function thumbnailByKeyFrame(
-  samples: ExtMP4Sample[],
+  samples: ExtSample[],
   localFile: OPFSToolFile,
   decConf: VideoDecoderConfig,
   abortSingl: AbortSignal,
@@ -1448,9 +1448,9 @@ async function thumbnailByKeyFrame(
 }
 
 // 如果第一帧出现的时间偏移较大，会导致第一帧为黑帧，这里尝试自动消除第一帧前的黑帧
-function fixFirstBlackFrame(samples: ExtMP4Sample[]) {
+function fixFirstBlackFrame(samples: ExtSample[]) {
   let iframeCnt = 0;
-  let minCtsSample: ExtMP4Sample | null = null;
+  let minCtsSample: ExtSample | null = null;
   // cts 最小表示视频的第一帧
   for (const s of samples) {
     if (s.deleted) continue;
@@ -1491,7 +1491,7 @@ if (import.meta.vitest) {
   it('normalizeTimescale should compatible with anomalous data', () => {
     // 视频容器数据异常时，直接使用容器的信息
     // 找不到 IDR 帧时，直接信任容器的 offset、size
-    const s: MP4Sample = {
+    const s: Sample = {
       offset: 48,
       size: 1000,
       cts: 0,

@@ -1,22 +1,23 @@
-import mp4box, {
+import {
+  createFile,
   MP4ArrayBuffer,
   MP4File,
-  MP4Info,
-  MP4Sample,
-} from '@webav/mp4box.js';
+  type Movie,
+  type Sample,
+} from '@webav/mp4box2.js';
 
 /**
- * 将原始字节流转换成 MP4Sample 流
+ * 将原始字节流转换成 Sample 流
  */
 export class SampleTransform {
   readable: ReadableStream<
     | {
         chunkType: 'ready';
-        data: { info: MP4Info; file: MP4File };
+        data: { info: Movie; file: MP4File };
       }
     | {
         chunkType: 'samples';
-        data: { id: number; type: 'video' | 'audio'; samples: MP4Sample[] };
+        data: { id: number; type: 'video' | 'audio'; samples: Sample[] };
       }
   >;
 
@@ -25,12 +26,12 @@ export class SampleTransform {
   #inputBufOffset = 0;
 
   constructor() {
-    const file = mp4box.createFile();
+    const file = createFile();
     let streamCancelled = false;
     this.readable = new ReadableStream(
       {
         start: (ctrl) => {
-          file.onReady = (info) => {
+          file.onReady = (info: Movie) => {
             const vTrackId = info.videoTracks[0]?.id;
             if (vTrackId != null)
               file.setExtractionOptions(vTrackId, 'video', { nbSamples: 100 });
