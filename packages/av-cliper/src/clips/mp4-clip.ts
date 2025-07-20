@@ -1,5 +1,5 @@
 import { Log } from '@webav/internal-utils';
-import { type Movie, type Sample } from '@webav/mp4box2.js';
+import { SampleEntry, type Movie, type Sample } from 'mp4box';
 import { file, tmpfile, write } from 'opfs-tools';
 import { audioResample, extractPCM4AudioData, sleep } from '../av-utils';
 import {
@@ -85,7 +85,7 @@ export class MP4Clip implements IClip {
 
   #localFile: OPFSToolFile;
 
-  #headerBoxPos: Array<{ start: number; size: number }> = [];
+  #headerBoxPos: Array<{ start: number | undefined; size: number }> = [];
   /**
    * 提供视频头（box: ftyp, moov）的二进制数据
    * 使用任意 mp4 demxer 解析即可获得详细的视频信息
@@ -98,7 +98,7 @@ export class MP4Clip implements IClip {
 
     return await new Blob(
       this.#headerBoxPos.map(({ start, size }) =>
-        oFile.slice(start, start + size),
+        oFile.slice(start, (start || 0) + size),
       ),
     ).arrayBuffer();
   }
@@ -523,7 +523,7 @@ async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
   const decoderConf: MP4DecoderConf = { video: null, audio: null };
   let videoSamples: ExtSample[] = [];
   let audioSamples: ExtSample[] = [];
-  let headerBoxPos: Array<{ start: number; size: number }> = [];
+  let headerBoxPos: Array<{ start: number | undefined; size: number }> = [];
 
   let videoDeltaTS = -1;
   let audioDeltaTS = -1;
@@ -611,7 +611,7 @@ function normalizeTimescale(
   let offset = s.offset;
   const isVideoSync = sampleType === 'video' && s.is_sync;
   const idrOffset = isVideoSync
-    ? idrNALUOffset(s.data, s.description.type, offset)
+    ? idrNALUOffset(s.data, s.description, offset)
     : -1;
 
   // 默认信任第一个关键帧 是 IDR 帧，兼容某些异常标注的视频文件
@@ -1352,7 +1352,7 @@ function decodeGoP(
 
 function idrNALUOffset(
   u8Arr: Uint8Array,
-  type: Sample['description']['type'],
+  type: Sample['description'],
   startOffset: number,
 ) {
   if (type !== 'avc1' && type !== 'hvc1') return 0;

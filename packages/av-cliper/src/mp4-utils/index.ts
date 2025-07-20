@@ -4,6 +4,7 @@ import {
   createFile,
   DataStream,
   ISOFile,
+  Endianness,
   type Sample,
 } from 'mp4box';
 import { tmpfile, write } from 'opfs-tools';
@@ -18,7 +19,9 @@ import { DEFAULT_AUDIO_CONF } from '../clips';
 import { extractFileConfig } from './mp4box-utils';
 import { SampleTransform } from './sample-transform';
 
-const trakBox = (typeof BoxParser)['box']['trak'];
+const trakBox = BoxParser['box']['trak'];
+
+trakBox.
 
 function fixMP4BoxFileDuration(
   inMP4File: ISOFile,
@@ -115,7 +118,7 @@ function fixMP4BoxFileDuration(
     if (startIdx >= source.length) return null;
 
     const ds = new DataStream();
-    ds.endianness = DataStream.BIG_ENDIAN;
+    ds.endianness = Endianness.BIG_ENDIAN;
 
     for (let i = startIdx; i < source.length; i++) {
       if (source[i] === null) continue;
@@ -172,7 +175,7 @@ export async function fastConcatMP4(
 
 async function concatStreamsToMP4BoxFile(
   streams: ReadableStream<Uint8Array>[],
-  outfile: MP4File,
+  outfile: ISOFile,
 ) {
   let vTrackId = 0;
   let vDTS = 0;

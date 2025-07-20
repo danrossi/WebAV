@@ -6,14 +6,15 @@ import {
   IsoFileOptions,
   MP4ArrayBuffer,
   mp4aSampleEntry,
+  Endianness,
   type Movie,
   type Sample,
 } from 'mp4box';
 import { file } from 'opfs-tools';
 import { DEFAULT_AUDIO_CONF } from '../clips';
 
-const trakBox = (typeof BoxParser)['box']['trak'],
-  esdsBoxType = (typeof BoxParser)['box']['esds'];
+const trakBox = BoxParser['box']['trak'],
+  esdsBoxType = BoxParser['box']['esds'];
 
 export function extractFileConfig(file: ISOFile, info: Movie) {
   const vTrack = info.videoTracks[0];
@@ -34,11 +35,12 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
       rs.videoTrackConf = {
         timescale: vTrack.timescale,
         duration: vTrack.duration,
-        width: vTrack.video.width,
-        height: vTrack.video.height,
+        width: vTrack.video?.width,
+        height: vTrack.video?.height,
         brands: info.brands,
         type,
-        [descKey]: videoDesc,
+        description: videoDesc
+        //[descKey]: videoDesc,
       };
     }
 
@@ -79,7 +81,7 @@ function parseVideoCodecDesc(track: typeof trakBox): Uint8Array | undefined {
     // @ts-expect-error
     const box = entry.avcC ?? entry.hvcC ?? entry.av1C ?? entry.vpcC;
     if (box != null) {
-      const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
+      const stream = new DataStream(undefined, 0, Endianness.BIG_ENDIAN);
       box.write(stream);
       return new Uint8Array(stream.buffer.slice(8)); // Remove the box header.
     }
@@ -124,12 +126,12 @@ export async function quickParseMP4File(
   onReady: (data: { mp4boxFile: ISOFile; info: Movie }) => void,
   onSamples: (
     id: number,
-    sampleType: 'video' | 'audio',
-    samples: Sample[],
+    sampleType: unknown | 'video' | 'audio',
+    samples: Array<Sample>,
   ) => void,
 ) {
   const mp4boxFile = createFile(false);
-  mp4boxFile.onReady = (info) => {
+  mp4boxFile.onReady = (info: Movie) => {
     onReady({ mp4boxFile, info });
     const vTrackId = info.videoTracks[0]?.id;
     if (vTrackId != null)
