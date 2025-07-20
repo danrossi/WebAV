@@ -1,4 +1,4 @@
-declare module '@webav/mp4box.js' {
+declare module 'mp4box.js' {
   export interface MP4MediaTrack {
     id: number;
     created: Date;
@@ -97,7 +97,14 @@ declare module '@webav/mp4box.js' {
     cts: number;
     sample_description_index?: number;
     is_sync: boolean;
-    description?: MP4ABoxParser | AVC1BoxParser | HVCBoxParser;
+    //description?: MP4ABoxParser | AVC1BoxParser | HVCBoxParser;
+    is_leading?: number;
+    depends_on?: number;
+    is_depended_on?: number;
+    has_redundancy?: number;
+    degradation_priority?: number;
+    subsamples?: Array<SubSample>;
+    offset?: number;
   }
 
   export interface MP4Sample {

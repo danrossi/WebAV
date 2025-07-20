@@ -9,6 +9,9 @@ import {
   type Sample,
   type SampleEntryFourCC
 } from 'mp4box';
+import {
+  SampleOpts
+} from 'mp4box.js';
 import { tmpfile, write } from 'opfs-tools';
 import {
   concatPCMFragments,
@@ -141,9 +144,9 @@ function fixMP4BoxFileDuration(
 function chunk2Mp4SampleOpts(
   chunk: EncodedAudioChunk | EncodedVideoChunk,
 ): SampleOpts & {
-  data: ArrayBuffer;
+  data: Uint8Array<ArrayBuffer>;
 } {
-  const buf = new ArrayBuffer(chunk.byteLength);
+  const buf = new Uint8Array(chunk.byteLength);
   chunk.copyTo(buf);
   const dts = chunk.timestamp;
   return {
