@@ -1,20 +1,25 @@
 import {
   BoxParser,
+  BoxRegistry,
   createFile,
   DataStream,
   ISOFile,
-  MP4ArrayBuffer,
-  mp4aSampleEntry,
   Endianness,
   type IsoFileOptions,
   type Movie,
   type Sample,
+  type SampleEntryFourCC
 } from 'mp4box';
+import { type MP4ArrayBuffer } from 'mp4box.js';
+
 import { file } from 'opfs-tools';
 import { DEFAULT_AUDIO_CONF } from '../clips';
 
-const trakBox = new BoxParser['box']['trak'],
-  esdsBoxType = new BoxParser['box']['esds'];
+const trakBox = new BoxParser['box'].trak,
+  esdsBoxType = new BoxParser['box'].esds,
+  dOpsType = new BoxParser['box'].dOps;
+
+
 
 export function extractFileConfig(file: ISOFile, info: Movie) {
   const vTrack = info.videoTracks[0];
@@ -38,37 +43,39 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
         width: vTrack.video?.width,
         height: vTrack.video?.height,
         brands: info.brands,
-        type,
-        description: videoDesc
-        //[descKey]: videoDesc,
+        type: type as SampleEntryFourCC,
+        //description: videoDesc
+        [descKey]: videoDesc,
       };
     }
 
     rs.videoDecoderConf = {
       codec: vTrack.codec,
-      codedHeight: vTrack.video.height,
-      codedWidth: vTrack.video.width,
+      codedHeight: vTrack.video?.height,
+      codedWidth: vTrack.video?.width,
       description: videoDesc as ArrayBuffer,
     };
   }
 
   const aTrack = info.audioTracks[0];
+  
   if (aTrack != null) {
-    const esdsBox = getESDSBoxFromMP4File(file);
+   // const esdsBox = getESDSBoxFromMP4File(file);
     rs.audioTrackConf = {
       timescale: aTrack.timescale,
-      samplerate: aTrack.audio.sample_rate,
-      channel_count: aTrack.audio.channel_count,
+      samplerate: aTrack.audio?.sample_rate,
+      channel_count: aTrack.audio?.channel_count,
       hdlr: 'soun',
-      type: aTrack.codec.startsWith('mp4a') ? 'mp4a' : aTrack.codec,
-      description: getESDSBoxFromMP4File(file),
+      type: (aTrack.codec.startsWith('mp4a') ? 'mp4a' : aTrack.codec) as SampleEntryFourCC,
+      description_boxes: getESDSBoxFromMP4File(file)
+      //description: getESDSBoxFromMP4File(file),
     };
     rs.audioDecoderConf = {
       codec: aTrack.codec.startsWith('mp4a')
         ? DEFAULT_AUDIO_CONF.codec
         : aTrack.codec,
-      numberOfChannels: aTrack.audio.channel_count,
-      sampleRate: aTrack.audio.sample_rate,
+      numberOfChannels: aTrack.audio?.channel_count ?? DEFAULT_AUDIO_CONF.channelCount,
+      sampleRate: aTrack.audio?.sample_rate ?? DEFAULT_AUDIO_CONF.sampleRate
       ...(esdsBox == null ? {} : parseAudioInfo4ESDSBox(esdsBox)),
     };
   }
@@ -89,13 +96,29 @@ function parseVideoCodecDesc(track: typeof trakBox): Uint8Array | undefined {
   return undefined;
 }
 
-function getESDSBoxFromMP4File(file: ISOFile, codec = 'mp4a') {
-  const mp4aBox = file.moov?.traks
+function getESDSBoxFromMP4File(file: ISOFile) {
+  
+  //file.moov?.traks[0].mdia.minf.stbl.stsd.entries[0]
+  /*const mp4aBox = file.moov?.traks
     .map((t) => t.mdia.minf.stbl.stsd.entries)
     .flat()
     .find(({ type }) => type === codec) as mp4aSampleEntry;
 
-  return mp4aBox?.esds;
+  return mp4aBox?.esds;*/
+
+  const trak = file.moov?.traks
+    .map((t) => t.mdia.minf.stbl.stsd.entries)
+    .flat()
+    .find(trak => trak.isAudio())
+
+    // file.moov?.traks[1].mdia.minf.stbl.stsd.entries[0].
+    //.flat()
+    //.find(({ type }) => type === codec);
+
+   // trak?.boxes?
+    trak?.esds;
+
+    return trak?.data;
 }
 
 // 解决封装层音频信息标识错误，导致解码异常

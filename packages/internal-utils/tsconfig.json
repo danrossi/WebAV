@@ -1,4 +1,4 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["../../types/mp4box.all.d.ts", "."]
+  "include": ["../../types/mp4box.d.ts", "."]
 }

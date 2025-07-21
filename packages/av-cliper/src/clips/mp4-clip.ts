@@ -1,5 +1,5 @@
 import { Log } from '@webav/internal-utils';
-import { SampleEntry, type Movie, type Sample } from 'mp4box';
+import { SampleEntry, SampleGroupEntry, type Movie, type Sample } from 'mp4box';
 import { file, tmpfile, write } from 'opfs-tools';
 import { audioResample, extractPCM4AudioData, sleep } from '../av-utils';
 import {
@@ -33,10 +33,11 @@ interface MP4ClipOpts {
   __unsafe_hardwareAcceleration__?: HardwarePreference;
 }
 
-type ExtSample = Omit<Sample, 'data'> & {
+//type ExtSample = Omit<Sample, 'data'> & {
+type ExtSample = Sample & {
   is_idr: boolean;
   deleted?: boolean;
-  data: null | Uint8Array;
+  //data: null | Uint8Array;
 };
 
 type LocalFileReader = Awaited<ReturnType<OPFSToolFile['createReader']>>;
@@ -609,6 +610,7 @@ function normalizeTimescale(
 ) {
   // todo: perf 丢弃多余字段，小尺寸对象性能更好
   let offset = s.offset;
+
   const isVideoSync = sampleType === 'video' && s.is_sync;
   const idrOffset = isVideoSync
     ? idrNALUOffset(s.data, s.description, offset)
@@ -1351,18 +1353,19 @@ function decodeGoP(
 }
 
 function idrNALUOffset(
-  u8Arr: Uint8Array,
-  type: Sample['description'],
+  u8Arr: Uint8Array<ArrayBuffer> | undefined,
+  entry: SampleEntry,
   startOffset: number,
 ) {
-  if (type !== 'avc1' && type !== 'hvc1') return 0;
+
+  if (entry.type !== 'avc1' && entry.type !== 'hvc1' || !u8Arr) return 0;
 
   const dv = new DataView(u8Arr.buffer);
   let i = startOffset;
   for (; i < u8Arr.byteLength - 4; ) {
-    if (type === 'avc1' && (dv.getUint8(i + 4) & 0x1f) === 5) {
+    if (entry.type === 'avc1' && (dv.getUint8(i + 4) & 0x1f) === 5) {
       return i;
-    } else if (type === 'hvc1') {
+    } else if (entry.type === 'hvc1') {
       const nalUnitType = (dv.getUint8(i + 4) >> 1) & 0x3f;
       if (nalUnitType === 19 || nalUnitType === 20) return i;
     }

@@ -1,4 +1,4 @@
-import { autoReadStream, file2stream, Log } from '@webav/internal-utils';
+import { autoReadStream, file2stream, Log, chunk2MP4SampleOpts } from '@webav/internal-utils';
 import {
   BoxParser,
   createFile,
@@ -9,9 +9,12 @@ import {
   type Sample,
   type SampleEntryFourCC
 } from 'mp4box';
+
+/*
 import {
   SampleOpts
-} from 'mp4box.js';
+} from 'mp4box.js';*/
+
 import { tmpfile, write } from 'opfs-tools';
 import {
   concatPCMFragments,
@@ -141,6 +144,7 @@ function fixMP4BoxFileDuration(
 /**
  * EncodedAudioChunk | EncodedVideoChunk 转换为 MP4 addSample 需要的参数
  */
+/*
 function chunk2Mp4SampleOpts(
   chunk: EncodedAudioChunk | EncodedVideoChunk,
 ): SampleOpts & {
@@ -156,7 +160,7 @@ function chunk2Mp4SampleOpts(
     is_sync: chunk.type === 'key',
     data: buf,
   };
-}
+}*/
 
 /**
  * 快速拼接多个mp4 文件流，要求所有 mp4 的属性一致，
@@ -306,7 +310,7 @@ function createMP4AudioSampleDecoder(
 // 是因为编码中途调用 AudioEncoder.flush ，会导致声音听起来卡顿
 function createMP4AudioSampleEncoder(
   aeConf: Parameters<AudioEncoder['configure']>[0],
-  onOutput: (s: ReturnType<typeof chunk2Mp4SampleOpts>) => void,
+  onOutput: (s: ReturnType<typeof chunk2MP4SampleOpts>) => void,
 ) {
   const encoderConf = {
     codec: aeConf.codec,
@@ -316,7 +320,7 @@ function createMP4AudioSampleEncoder(
 
   const adEncoder = new AudioEncoder({
     output: (chunk) => {
-      onOutput(chunk2Mp4SampleOpts(chunk));
+      onOutput(chunk2MP4SampleOpts(chunk));
     },
     error: (err) => {
       Log.error('AudioEncoder error:', err, ', config:', encoderConf);

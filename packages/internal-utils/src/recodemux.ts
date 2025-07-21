@@ -1,4 +1,5 @@
-import mp4box, { MP4File, SampleOpts } from '@webav/mp4box.js';
+import { createFile, DataStream, Endianness, BoxParser, ISOFile, IsoFileOptions, type SampleEntryFourCC } from 'mp4box';
+import { SampleOpts } from 'mp4box.js';
 import { EventTool } from './event-tool';
 import { Log } from './log';
 import { createMetaBox } from './meta-box';
@@ -68,14 +69,14 @@ export function recodemux(opts: IRecodeMuxOpts): {
   /**
    * mp4box 实例
    */
-  mp4file: MP4File;
+  mp4file: ISOFile;
   /**
    * 返回队列长度（背压），用于控制生产视频的进度，队列过大会会占用大量显存
    */
   getEncodeQueueSize: () => number;
 } {
   Log.info('recodemux opts:', opts);
-  const mp4file = mp4box.createFile();
+  const mp4file = createFile();
 
   // 音视频轨道必须同时创建, 保存在 moov 中
   const avSyncEvtTool = new EventTool<
@@ -83,11 +84,14 @@ export function recodemux(opts: IRecodeMuxOpts): {
   >();
 
   const addMetadata = (
-    moov: NonNullable<MP4File['moov']>,
+    moov: NonNullable<ISOFile['moov']>,
     tags: NonNullable<IRecodeMuxOpts['metaDataTags']>,
   ) => {
-    const udtaBox = moov.add('udta');
-    const metaBox = udtaBox.add('meta');
+    const udta = new BoxParser['box']['udta'],
+    meta = new BoxParser['box']['meta'],
+    udtaBox = moov.addBox(udta),
+    metaBox = udtaBox.addBox(meta);
+    
     metaBox.data = createMetaBox(tags);
     metaBox.size = metaBox.data.byteLength;
   };
@@ -158,19 +162,22 @@ export function recodemux(opts: IRecodeMuxOpts): {
 
 function encodeVideoTrack(
   opts: NonNullable<IRecodeMuxOpts['video']>,
-  mp4File: MP4File,
+  mp4File: ISOFile,
   avSyncEvtTool: EventTool<Record<'VideoReady' | 'AudioReady', () => void>>,
 ) {
-  const videoTrackOpts = {
+  const videoTrackOpts: IsoFileOptions = {
     // 微秒
     timescale: 1e6,
     width: opts.width,
     height: opts.height,
     brands: ['isom', 'iso2', 'avc1', 'mp42', 'mp41'],
-    avcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
-    hevcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
-    vpcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
-    type: 'avc1',
+    hevcDecoderConfigRecord: undefined,
+    avcDecoderConfigRecord: undefined,
+    //avcDecoderConfigRecord: null as ArrayBuffer;
+    //avcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
+    //hevcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
+    //vpcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
+    type: 'avc1' as SampleEntryFourCC,
     name: 'Track created with WebAV',
   };
 
@@ -197,14 +204,14 @@ function encodeVideoTrack(
       if (opts.codec.startsWith('avc1')) {
         fixChromeConstraintSetFlagsBug(desc);
       } else if (opts.codec.startsWith('vp09') && meta.decoderConfig) {
-        videoTrackOpts.type = 'vp09';
+        videoTrackOpts.type = 'vp09' as SampleEntryFourCC;
         desc = createVP9ConfDesc(meta.decoderConfig);
       }
       const decorderConfKey = (
         [
           ['avc1', 'avcDecoderConfigRecord'],
           ['hvc1', 'hevcDecoderConfigRecord'],
-          ['vp09', 'vpcDecoderConfigRecord'],
+          //['vp09', 'vpcDecoderConfigRecord'],
         ] as const
       ).find(([codec]) => opts.codec.startsWith(codec))?.[1];
       if (decorderConfKey != null && desc != null) {
@@ -402,17 +409,17 @@ const codecInfoMap: Map<string, AudioCodecInfoEntry> = new Map([
 
 function encodeAudioTrack(
   audioOpts: NonNullable<IRecodeMuxOpts['audio']>,
-  mp4File: MP4File,
+  mp4File: ISOFile,
   avSyncEvtTool: EventTool<Record<'VideoReady' | 'AudioReady', () => void>>,
 ): AudioEncoder {
   const codecInfoMapEntry = codecInfoMap.get(audioOpts.codec)!;
-  const audioTrackOpts = {
+  const audioTrackOpts: IsoFileOptions = {
     timescale: 1e6,
     samplerate: audioOpts.sampleRate,
     channel_count: audioOpts.channelCount,
     hdlr: 'soun',
     //map codec to type
-    type: codecInfoMapEntry.type,
+    type: codecInfoMapEntry.type as SampleEntryFourCC,
     name: 'Track created with WebAV',
   };
 
@@ -451,14 +458,15 @@ function encodeAudioTrack(
     output: (chunk, meta) => {
       if (trackId === -1) {
         // 某些设备不会输出 description
-        const desc = meta?.decoderConfig?.description;
+        const desc = meta?.decoderConfig?.description as ArrayBuffer;
 
         trackId = mp4File.addTrack({
           ...audioTrackOpts,
-          description:
-            desc == null
-              ? undefined
-              : createESDSBox(desc, codecInfoMapEntry.code),
+          description: meta?.decoderConfig?.description
+          //description:
+          //  desc == null
+          //    ? undefined
+          //    : createESDSBox(desc, codecInfoMapEntry.code),
         });
         avSyncEvtTool.emit('AudioReady');
         Log.info('AudioEncoder, audio track ready, trackId:', trackId);
@@ -484,7 +492,7 @@ function encodeAudioTrack(
  * @param codecConfig The audio codec code for m4a and opus
  * @return 返回一个 ESDS box
  */
-function createESDSBox(
+/*unction createESDSBox(
   config: ArrayBuffer | ArrayBufferView,
   codecCode: number,
 ) {
@@ -528,21 +536,23 @@ function createESDSBox(
     0x02,
   ]);
 
-  const esdsBox = new mp4box.BoxParser.esdsBox(buf.byteLength);
+  const esdsBox = new BoxParser.esdsBox(buf.byteLength);
   esdsBox.hdr_size = 0;
-  esdsBox.parse(new mp4box.DataStream(buf, 0, mp4box.DataStream.BIG_ENDIAN));
+  esdsBox.parse(new DataStream(buf, 0, Endianness.BIG_ENDIAN));
   return esdsBox;
-}
+}*/
+
+
 
 /**
  * EncodedAudioChunk | EncodedVideoChunk 转换为 MP4 addSample 需要的参数
  */
-function chunk2MP4SampleOpts(
+export function chunk2MP4SampleOpts(
   chunk: EncodedAudioChunk | EncodedVideoChunk,
 ): SampleOpts & {
-  data: ArrayBuffer;
+  data: Uint8Array<ArrayBuffer>;
 } {
-  const buf = new ArrayBuffer(chunk.byteLength);
+  const buf = new Uint8Array(chunk.byteLength);
   chunk.copyTo(buf);
   const dts = chunk.timestamp;
   return {

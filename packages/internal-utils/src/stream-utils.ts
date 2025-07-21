@@ -1,4 +1,5 @@
-import mp4box, { MP4File } from '@webav/mp4box.js';
+import{ Endianness, DataStream, ISOFile } from 'mp4box';
+
 /**
  * 自动读取流并处理每个数据块。
  *
@@ -61,7 +62,7 @@ export function autoReadStream<ST extends ReadableStream>(
  * @param onCancel - 当返回的流被取消时触发该回调函数
  */
 export function file2stream(
-  file: MP4File,
+  file: ISOFile,
   timeSlice: number,
   onCancel?: () => void,
 ): {
@@ -91,8 +92,8 @@ export function file2stream(
     }
     if (sendedBoxIdx >= boxes.length) return null;
 
-    const ds = new mp4box.DataStream();
-    ds.endianness = mp4box.DataStream.BIG_ENDIAN;
+    const ds = new DataStream();
+    ds.endianness = Endianness.BIG_ENDIAN;
 
     let i = sendedBoxIdx;
     try {
@@ -165,7 +166,7 @@ export function file2stream(
  * 强行回收 mp4boxfile 尽量降低内存占用，会破坏 file 导致无法正常使用
  * 仅用于获取二进制后，不再需要任何 file 功能的场景
  */
-function unsafeReleaseMP4BoxFile(file: MP4File) {
+function unsafeReleaseMP4BoxFile(file: ISOFile) {
   if (file.moov == null) return;
   for (var j = 0; j < file.moov.traks.length; j++) {
     file.moov.traks[j].samples = [];

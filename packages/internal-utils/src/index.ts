@@ -1,7 +1,7 @@
 export { EventTool } from './event-tool';
 export { workerTimer } from './worker-timer';
 export { autoReadStream, file2stream } from './stream-utils';
-export { recodemux } from './recodemux';
+export { recodemux, chunk2MP4SampleOpts } from './recodemux';
 export { Log } from './log';
 
 /**
