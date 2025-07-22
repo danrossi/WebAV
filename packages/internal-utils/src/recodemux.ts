@@ -1,9 +1,16 @@
-import { createFile, DataStream, Endianness, BoxParser, ISOFile, IsoFileOptions, type SampleEntryFourCC } from 'mp4box';
+import { createFile, DataStream, Endianness, BoxParser, Box, BoxKind, MP4BoxBuffer,  MultiBufferStream, ISOFile, IsoFileOptions, type SampleEntryFourCC } from 'mp4box';
 import { SampleOpts } from 'mp4box.js';
 import { EventTool } from './event-tool';
 import { Log } from './log';
 import { createMetaBox } from './meta-box';
 import { workerTimer } from './worker-timer';
+
+/*
+import {
+  type SampleEntryFourCC
+} from 'mp4box';*/
+
+
 
 type TCleanFn = () => void;
 
@@ -158,6 +165,10 @@ export function recodemux(opts: IRecodeMuxOpts): {
     },
     mp4file,
   };
+}
+
+export function videoCodecToType(codec: string): SampleEntryFourCC {
+  return codec.substring(0, 4) as SampleEntryFourCC;
 }
 
 function encodeVideoTrack(
@@ -392,20 +403,32 @@ interface AudioCodecInfoEntry {
 }
 
 //codec info map to type, codec string and codec code
-const codecInfoMap: Map<string, AudioCodecInfoEntry> = new Map([
+export const codecInfoMap: Map<string, AudioCodecInfoEntry> = new Map([
   [
     'aac',
     {
       type: 'mp4a',
-      codecString: 'mp4a.40.2',
-      code: 0x40,
+      codecString: 'mp4a.40.2'
     } as AudioCodecInfoEntry,
   ],
   [
     'opus',
-    { type: 'Opus', codecString: 'opus', code: 0xad } as AudioCodecInfoEntry,
+    { type: 'Opus', codecString: 'opus' } as AudioCodecInfoEntry,
   ],
 ]);
+
+
+export const codecToTypeMap: Map<string, SampleEntryFourCC> = new Map([
+  [
+    'mp4a.40.2',
+    'mp4a' as SampleEntryFourCC
+  ],
+  [
+    'opus',
+    'Opus' as SampleEntryFourCC
+  ],
+]);
+
 
 function encodeAudioTrack(
   audioOpts: NonNullable<IRecodeMuxOpts['audio']>,
@@ -458,11 +481,28 @@ function encodeAudioTrack(
     output: (chunk, meta) => {
       if (trackId === -1) {
         // 某些设备不会输出 description
-        const desc = meta?.decoderConfig?.description as ArrayBuffer;
+        const desc = meta?.decoderConfig?.description as ArrayBuffer,
+        buffer = new MultiBufferStream(MP4BoxBuffer.fromArrayBuffer(desc, 0));
+
+        let boxes: Array<Box> = []; 
+
+        switch (codecInfoMapEntry.type) {
+          case "mp4a":
+            const esdsBox = new BoxParser['box'].esds();
+            esdsBox.parse(buffer);
+            boxes.push(esdsBox);
+          break;
+          case "Opus":
+            const dOps = new BoxParser['box'].dOps();
+            dOps.parse(buffer);
+            boxes.push(dOps);
+          break;
+        }
 
         trackId = mp4File.addTrack({
           ...audioTrackOpts,
-          description: meta?.decoderConfig?.description
+          description_boxes: boxes as Array<BoxKind>
+          //description: meta?.decoderConfig?.description
           //description:
           //  desc == null
           //    ? undefined
