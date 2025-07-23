@@ -34,6 +34,7 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
     audioDecoderConf?: Parameters<AudioDecoder['configure']>[0];
   } = {};
   if (vTrack != null) {
+    const type = videoCodecToType(vTrack.codec);
     const videoBoxes = getVideoBoxes(file.getTrackById(vTrack.id)),
     videoDesc = parseBoxToDesc(videoBoxes[0]);
     //const videoDesc = parseVideoCodecDesc(file.getTrackById(vTrack.id))?.buffer;
@@ -50,7 +51,7 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
         width: vTrack.video?.width,
         height: vTrack.video?.height,
         brands: info.brands,
-        type: videoCodecToType(vTrack.codec),
+        type: type,
         description_boxes: videoBoxes
         //description: videoDesc
         //[descKey]: videoDesc,
@@ -97,6 +98,11 @@ function parseBoxToDesc(box: Box): ArrayBuffer {
   const stream = new DataStream(undefined, 0, Endianness.BIG_ENDIAN);
   box.write(stream);
   return new Uint8Array(stream.buffer.slice(8)).buffer; // Remove the box header.
+
+  /*
+    const avcC = new DataStream();
+  avcC.endianness = Endianness.BIG_ENDIAN;
+  mp4.getBox('avcC').write(avcC);*/
 }
 
 function getVideoBoxes(track: typeof trakBox): Array<BoxKind> {

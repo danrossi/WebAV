@@ -4,6 +4,7 @@ import { EventTool } from './event-tool';
 import { Log } from './log';
 import { createMetaBox } from './meta-box';
 import { workerTimer } from './worker-timer';
+import { createBoxFromDescription } from './stream-utils';
 
 /*
 import {
@@ -165,10 +166,6 @@ export function recodemux(opts: IRecodeMuxOpts): {
     },
     mp4file,
   };
-}
-
-export function videoCodecToType(codec: string): SampleEntryFourCC {
-  return codec.substring(0, 4) as SampleEntryFourCC;
 }
 
 function encodeVideoTrack(
@@ -396,25 +393,74 @@ function createVideoEncoder(
 }
 
 //codec info map entry
-interface AudioCodecInfoEntry {
-  type: string;
-  codecString: string;
-  code: number;
+interface CodecInfoEntry {
+  type: SampleEntryFourCC;
+  codecString: string | undefined;
+  boxName: 'esds' | 'dOps' | 'vpcC' | 'av1C';
+}
+
+export function codecToType(codec: string): SampleEntryFourCC {
+  return codec.substring(0, 4) as SampleEntryFourCC;
+}
+
+export function getCodecMap(codec: string): CodecInfoEntry {
+  return codecInfoMap.get(codecToType(codec))!;
 }
 
 //codec info map to type, codec string and codec code
-export const codecInfoMap: Map<string, AudioCodecInfoEntry> = new Map([
+export const codecInfoMap: Map<string, CodecInfoEntry> = new Map([
+  [
+    'mp4a',
+    {
+      type: 'mp4a',
+      codecString: 'mp4a.40.2',
+      boxName: 'esds'
+    } as CodecInfoEntry
+  ],
   [
     'aac',
     {
       type: 'mp4a',
-      codecString: 'mp4a.40.2'
-    } as AudioCodecInfoEntry,
+      codecString: 'mp4a.40.2',
+      boxName: 'esds'
+    } as CodecInfoEntry
   ],
   [
     'opus',
-    { type: 'Opus', codecString: 'opus' } as AudioCodecInfoEntry,
+    { 
+      type: 'Opus', 
+      codecString: 'opus',
+      boxName: 'dOps'
+    } as CodecInfoEntry
   ],
+  [
+    'avc1',
+    {
+      type: 'avc1',
+      boxName: 'avcC'
+    } as CodecInfoEntry
+  ],
+  [
+    'hevc1',
+    {
+      type: 'hevc1',
+      boxName: 'hvcC'
+    } as CodecInfoEntry
+  ],
+  [
+    'vp09',
+    {
+      type: 'vp09',
+      boxName: 'vpcC'
+    } as CodecInfoEntry
+  ],
+  [
+    'av01',
+    {
+      type: 'av01',
+      boxName: 'av1C'
+    } as CodecInfoEntry
+  ]
 ]);
 
 
@@ -435,14 +481,14 @@ function encodeAudioTrack(
   mp4File: ISOFile,
   avSyncEvtTool: EventTool<Record<'VideoReady' | 'AudioReady', () => void>>,
 ): AudioEncoder {
-  const codecInfoMapEntry = codecInfoMap.get(audioOpts.codec)!;
+  const codecInfoMapEntry = getCodecMap(audioOpts.codec)!;
   const audioTrackOpts: IsoFileOptions = {
     timescale: 1e6,
     samplerate: audioOpts.sampleRate,
     channel_count: audioOpts.channelCount,
     hdlr: 'soun',
     //map codec to type
-    type: codecInfoMapEntry.type as SampleEntryFourCC,
+    type: codecInfoMapEntry.type,
     name: 'Track created with WebAV',
   };
 
@@ -481,21 +527,22 @@ function encodeAudioTrack(
     output: (chunk, meta) => {
       if (trackId === -1) {
         // 某些设备不会输出 description
-        const desc = meta?.decoderConfig?.description as ArrayBuffer,
-        buffer = new MultiBufferStream(MP4BoxBuffer.fromArrayBuffer(desc, 0));
+        const desc = meta?.decoderConfig?.description as ArrayBuffer;
 
         let boxes: Array<Box> = []; 
 
+         const esdsBox = createBoxFromDescription(desc, codecInfoMapEntry.box);
+        boxes.push(esdsBox);
+
+
         switch (codecInfoMapEntry.type) {
           case "mp4a":
-            const esdsBox = new BoxParser['box'].esds();
-            esdsBox.parse(buffer);
+            const esdsBox = createBoxFromDescription(desc, 'esds');
             boxes.push(esdsBox);
           break;
           case "Opus":
-            const dOps = new BoxParser['box'].dOps();
-            dOps.parse(buffer);
-            boxes.push(dOps);
+            const dOpsBox = createBoxFromDescription(desc, 'dOps');
+            boxes.push(dOpsBox);
           break;
         }
 

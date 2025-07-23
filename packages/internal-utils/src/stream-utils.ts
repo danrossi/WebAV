@@ -1,4 +1,4 @@
-import{ Endianness, DataStream, ISOFile } from 'mp4box';
+import{ Endianness, DataStream, ISOFile, AllIdentifiers, Box, BoxParser, MultiBufferStream, MP4BoxBuffer, type BoxFourCC} from 'mp4box';
 
 /**
  * 自动读取流并处理每个数据块。
@@ -56,6 +56,31 @@ export function autoReadStream<ST extends ReadableStream>(
 }
 
 /**
+ * Util to write box to a data stream for extracting the box data
+ * @param box 
+ * @returns 
+ */
+export function writeBoxToStream(box: Box): DataStream {
+  const ds = new DataStream();
+  ds.endianness = Endianness.BIG_ENDIAN;
+  box.write(ds);
+  return ds;
+}
+
+/**
+ * Create the description box from a decoder description
+ * @param desc 
+ * @param boxName 
+ * @returns 
+ */
+export function createBoxFromDescription(desc:ArrayBuffer, boxName: 'esds' | 'dOps' | 'vpcC' | 'av1C'): Box {
+  const buffer = new MultiBufferStream(MP4BoxBuffer.fromArrayBuffer(desc, 0)),
+  box = new BoxParser.box[boxName](buffer.byteLength);
+  box.parse(buffer);
+  return box;
+}
+
+/**
  * 将 mp4box file 转换为文件流，用于上传服务器或存储到本地
  * @param file - MP4 文件实例 {@link MP4File}。
  * @param timeSlice - 时间片，用于控制流的发送速度。
@@ -84,7 +109,8 @@ export function file2stream(
   const deltaBuf = (): Uint8Array | null => {
     // 避免 moov 未完成时写入文件，导致文件无法被识别
     if (!firstMoofReady) {
-      if (boxes.find((box) => box.type === 'moof') != null) {
+      //boxes.find((box) => box.type === 'moof') != null
+      if (file.getBox('moof' as AllIdentifiers)) {
         firstMoofReady = true;
       } else {
         return null;
