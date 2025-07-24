@@ -1,3 +1,5 @@
+import { BoxParser } from 'mp4box';
+
 const createBoxHeader = (type: string, size: number): Uint8Array => {
   const buffer = new Uint8Array(8);
   const view = new DataView(buffer.buffer);
@@ -122,3 +124,56 @@ export const createMetaBox = (data: Record<string, string>): Uint8Array => {
 
   return buffer;
 };
+
+
+/**
+ * Parse metadata from a metabox using the keys box as the object keys
+ * @param metaBox 
+ * @returns 
+ */
+export function parseUserMetaBox(metaBox: typeof BoxParser['box']['meta']) {
+  let metadata = {};
+  const ilstBox = metaBox.ilst,
+    keysBox = metaBox.keys;
+
+  const data = typeof BoxParser['box']['data'];
+
+  if (ilstBox && keysBox) {
+    const handlerName = metaBox.hdlr.handler;
+
+    metadata = Object.fromEntries(Object.entries(ilstBox.list).map(entry => {
+      const key = entry[0], dataBox: typeof BoxParser['box']['data'] = entry[1] as typeof data;
+      return [metaBox.keys.keys[key].replace(handlerName, ""), dataBox.value]
+    }));
+
+  }
+
+  return metadata;
+
+}
+
+export const createUserMetaBox = (data: Record<string, string>): typeof BoxParser['box']['udta'] => {
+  const udtaBox = BoxParser['box']['udta'],
+    metaBox = BoxParser['box']['meta'],
+    hdlrBox = BoxParser['box']['hdlr'],
+    udta = new udtaBox(),
+    meta = udta.addBox(new metaBox()),
+    hdlr = meta.addBox(new hdlrBox());
+  hdlr.handler = 'meta';
+  hdlr.name = 'User metadata';
+
+    const keysBox = meta.addBox(new BoxParser['box'].keys()),
+    ilstBox = meta.addBox(new BoxParser['box'].ilst());
+
+    ilstBox.list = keysBox.keys = {};
+
+    Object.keys(data).forEach( (key: string, index: number) => {
+        keysBox.keys[index] = key;
+        const dataBox = new BoxParser['box'].data();
+        dataBox.value = data[key];
+        dataBox.languageString = "";
+        ilstBox.list[index] = dataBox;
+    });
+
+  return udta;
+}

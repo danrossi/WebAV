@@ -1,11 +1,11 @@
-import { createFile, DataStream, Endianness, BoxParser, Box, BoxKind, MP4BoxBuffer,  MultiBufferStream, ISOFile, IsoFileOptions, type SampleEntryFourCC } from 'mp4box';
+import { createFile, BoxParser, Box, BoxKind, ISOFile, IsoFileOptions } from 'mp4box';
 import { SampleOpts } from 'mp4box.js';
 import { EventTool } from './event-tool';
 import { Log } from './log';
 import { createMetaBox } from './meta-box';
 import { workerTimer } from './worker-timer';
-import { createBoxFromDescription } from './stream-utils';
-
+import { createBoxFromDescription } from './box-utils';
+import { getCodecMap } from './codecmap-utils';
 /*
 import {
   type SampleEntryFourCC
@@ -32,6 +32,7 @@ interface IRecodeMuxOpts {
      * 不安全，随时可能废弃
      */
     __unsafe_hardwareAcceleration__?: HardwareAcceleration;
+    trackName: string;
   } | null;
   /**
    * 音频配置选项，如果为 null 则不处理音频。
@@ -41,6 +42,7 @@ interface IRecodeMuxOpts {
     opusConfig: object;
     sampleRate: number;
     channelCount: number;
+    trackName: string;
   } | null;
   /**
    * 预设时长，不代表 track 实际时长
@@ -173,6 +175,8 @@ function encodeVideoTrack(
   mp4File: ISOFile,
   avSyncEvtTool: EventTool<Record<'VideoReady' | 'AudioReady', () => void>>,
 ) {
+  const codecInfoMapEntry = getCodecMap(opts.codec)!;
+
   const videoTrackOpts: IsoFileOptions = {
     // 微秒
     timescale: 1e6,
@@ -185,8 +189,9 @@ function encodeVideoTrack(
     //avcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
     //hevcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
     //vpcDecoderConfigRecord: null as ArrayBuffer | undefined | null,
-    type: 'avc1' as SampleEntryFourCC,
-    name: 'Track created with WebAV',
+    type: codecInfoMapEntry.type,
+    hdlr: 'video',
+    name: opts.trackName
   };
 
   let trackId = -1;
@@ -211,11 +216,11 @@ function encodeVideoTrack(
       let desc = meta.decoderConfig?.description as ArrayBuffer;
       if (opts.codec.startsWith('avc1')) {
         fixChromeConstraintSetFlagsBug(desc);
-      } else if (opts.codec.startsWith('vp09') && meta.decoderConfig) {
-        videoTrackOpts.type = 'vp09' as SampleEntryFourCC;
-        desc = createVP9ConfDesc(meta.decoderConfig);
-      }
-      const decorderConfKey = (
+      } //else if (opts.codec.startsWith('vp09') && meta.decoderConfig) {
+        //videoTrackOpts.type = 'vp09' as SampleEntryFourCC;
+        //desc = createVP9ConfDesc(meta.decoderConfig);
+      //}
+      /*const decorderConfKey = (
         [
           ['avc1', 'avcDecoderConfigRecord'],
           ['hvc1', 'hevcDecoderConfigRecord'],
@@ -224,7 +229,12 @@ function encodeVideoTrack(
       ).find(([codec]) => opts.codec.startsWith(codec))?.[1];
       if (decorderConfKey != null && desc != null) {
         videoTrackOpts[decorderConfKey] = desc;
-      }
+      }*/
+
+      //create the single video box and add it to the description directly.
+      //mp4box doesn't have a helper decoder config for vp09 or av01
+      const videoBox = createBoxFromDescription(desc, codecInfoMapEntry.boxName);
+      videoTrackOpts.description = videoBox;
 
       trackId = mp4File.addTrack(videoTrackOpts);
       avSyncEvtTool.emit('VideoReady');
@@ -392,90 +402,6 @@ function createVideoEncoder(
   return encoder;
 }
 
-//codec info map entry
-interface CodecInfoEntry {
-  type: SampleEntryFourCC;
-  codecString: string | undefined;
-  boxName: 'esds' | 'dOps' | 'vpcC' | 'av1C';
-}
-
-export function codecToType(codec: string): SampleEntryFourCC {
-  return codec.substring(0, 4) as SampleEntryFourCC;
-}
-
-export function getCodecMap(codec: string): CodecInfoEntry {
-  return codecInfoMap.get(codecToType(codec))!;
-}
-
-//codec info map to type, codec string and codec code
-export const codecInfoMap: Map<string, CodecInfoEntry> = new Map([
-  [
-    'mp4a',
-    {
-      type: 'mp4a',
-      codecString: 'mp4a.40.2',
-      boxName: 'esds'
-    } as CodecInfoEntry
-  ],
-  [
-    'aac',
-    {
-      type: 'mp4a',
-      codecString: 'mp4a.40.2',
-      boxName: 'esds'
-    } as CodecInfoEntry
-  ],
-  [
-    'opus',
-    { 
-      type: 'Opus', 
-      codecString: 'opus',
-      boxName: 'dOps'
-    } as CodecInfoEntry
-  ],
-  [
-    'avc1',
-    {
-      type: 'avc1',
-      boxName: 'avcC'
-    } as CodecInfoEntry
-  ],
-  [
-    'hevc1',
-    {
-      type: 'hevc1',
-      boxName: 'hvcC'
-    } as CodecInfoEntry
-  ],
-  [
-    'vp09',
-    {
-      type: 'vp09',
-      boxName: 'vpcC'
-    } as CodecInfoEntry
-  ],
-  [
-    'av01',
-    {
-      type: 'av01',
-      boxName: 'av1C'
-    } as CodecInfoEntry
-  ]
-]);
-
-
-export const codecToTypeMap: Map<string, SampleEntryFourCC> = new Map([
-  [
-    'mp4a.40.2',
-    'mp4a' as SampleEntryFourCC
-  ],
-  [
-    'opus',
-    'Opus' as SampleEntryFourCC
-  ],
-]);
-
-
 function encodeAudioTrack(
   audioOpts: NonNullable<IRecodeMuxOpts['audio']>,
   mp4File: ISOFile,
@@ -489,7 +415,7 @@ function encodeAudioTrack(
     hdlr: 'soun',
     //map codec to type
     type: codecInfoMapEntry.type,
-    name: 'Track created with WebAV',
+    name: audioOpts.trackName,
   };
 
   let trackId = -1;
@@ -531,20 +457,10 @@ function encodeAudioTrack(
 
         let boxes: Array<Box> = []; 
 
-         const esdsBox = createBoxFromDescription(desc, codecInfoMapEntry.box);
-        boxes.push(esdsBox);
-
-
-        switch (codecInfoMapEntry.type) {
-          case "mp4a":
-            const esdsBox = createBoxFromDescription(desc, 'esds');
-            boxes.push(esdsBox);
-          break;
-          case "Opus":
-            const dOpsBox = createBoxFromDescription(desc, 'dOps');
-            boxes.push(dOpsBox);
-          break;
-        }
+        //create box for esds for aac or dOps for Opus
+        //requires to be a list of boxes as Opus requires two boxes
+        const esdsDopsBox = createBoxFromDescription(desc, codecInfoMapEntry.boxName);
+        boxes.push(esdsDopsBox);
 
         trackId = mp4File.addTrack({
           ...audioTrackOpts,

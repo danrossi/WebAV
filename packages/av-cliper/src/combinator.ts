@@ -24,6 +24,10 @@ export interface ICombinatorOpts {
    * 不安全，随时可能废弃
    */
   __unsafe_hardwareAcceleration__?: HardwarePreference;
+
+  videoTrackName?: string;
+  audioTrackName?: string;
+
 }
 
 let COM_ID = 0;
@@ -150,6 +154,8 @@ export class Combinator {
         bitrate: 5e6,
         fps: 30,
         metaDataTags: null,
+        videoTrackName: 'Track created with WebAV',
+        audioTrackName: 'Track created with WebAV'
       },
       opts,
     );
@@ -205,6 +211,7 @@ export class Combinator {
             bitrate,
             __unsafe_hardwareAcceleration__:
               this.#opts.__unsafe_hardwareAcceleration__,
+            trackName: this.#opts.videoTrackName
           }
         : null,
       audio:
@@ -215,6 +222,7 @@ export class Combinator {
               opusConfig: opusConfig,
               sampleRate: DEFAULT_AUDIO_CONF.sampleRate,
               channelCount: DEFAULT_AUDIO_CONF.channelCount,
+              trackName: this.#opts.audioTrackName
             },
       duration,
       metaDataTags: metaDataTags,
