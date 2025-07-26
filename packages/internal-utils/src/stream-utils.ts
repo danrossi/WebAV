@@ -1,4 +1,4 @@
-import{ Endianness, DataStream, ISOFile, AllIdentifiers, Box, BoxParser, MultiBufferStream, MP4BoxBuffer, type BoxFourCC} from 'mp4box';
+import{ Endianness, DataStream, ISOFile, AllIdentifiers } from 'mp4box';
 
 /**
  * 自动读取流并处理每个数据块。

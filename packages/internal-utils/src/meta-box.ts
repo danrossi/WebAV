@@ -131,8 +131,10 @@ export const createMetaBox = (data: Record<string, string>): Uint8Array => {
  * @param metaBox 
  * @returns 
  */
-export function parseUserMetaBox(metaBox: typeof BoxParser['box']['meta']) {
+
+export function parseUserMetaBox(metaBox: any) {
   let metadata = {};
+  
   const ilstBox = metaBox.ilst,
     keysBox = metaBox.keys;
 
@@ -142,7 +144,7 @@ export function parseUserMetaBox(metaBox: typeof BoxParser['box']['meta']) {
     const handlerName = metaBox.hdlr.handler;
 
     metadata = Object.fromEntries(Object.entries(ilstBox.list).map(entry => {
-      const key = entry[0], dataBox: typeof BoxParser['box']['data'] = entry[1] as typeof data;
+      const key = entry[0], dataBox: any = entry[1] as typeof data;
       return [metaBox.keys.keys[key].replace(handlerName, ""), dataBox.value]
     }));
 
@@ -152,7 +154,7 @@ export function parseUserMetaBox(metaBox: typeof BoxParser['box']['meta']) {
 
 }
 
-export const createUserMetaBox = (data: Record<string, string>): typeof BoxParser['box']['udta'] => {
+export const createUserMetaBox = (data: Record<string, string>) => {
   const udtaBox = BoxParser['box']['udta'],
     metaBox = BoxParser['box']['meta'],
     hdlrBox = BoxParser['box']['hdlr'],
@@ -162,18 +164,32 @@ export const createUserMetaBox = (data: Record<string, string>): typeof BoxParse
   hdlr.handler = 'meta';
   hdlr.name = 'User metadata';
 
-    const keysBox = meta.addBox(new BoxParser['box'].keys()),
-    ilstBox = meta.addBox(new BoxParser['box'].ilst());
 
-    ilstBox.list = keysBox.keys = {};
 
-    Object.keys(data).forEach( (key: string, index: number) => {
+    const keysBox = meta.addBox(new BoxParser['box']['keys']),
+    ilstBox = meta.addBox(new BoxParser['box']['ilst']);
+
+
+    //ilstBox.list = keysBox.keys = {};
+
+    const keys: string[] =  Object.keys(data);
+
+    keys.forEach( (key: string, index: number) => {
         keysBox.keys[index] = key;
-        const dataBox = new BoxParser['box'].data();
+        const dataBox = new BoxParser['box']['data']
         dataBox.value = data[key];
-        dataBox.languageString = "";
+
+
+       // let languageString: string | null = "";
+       /// let myString: string | null;
+        //let valueFromSource: string | null = "";
+       // myString = valueFromSource ?? null;
+
+        dataBox.languageString = " ";
         ilstBox.list[index] = dataBox;
     });
+
+
 
   return udta;
 }

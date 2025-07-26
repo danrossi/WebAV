@@ -1,8 +1,9 @@
-import { createFile, BoxParser, Box, BoxKind, ISOFile, IsoFileOptions } from 'mp4box';
+import { createFile, Box, BoxKind, ISOFile, IsoFileOptions } from 'mp4box';
 import { SampleOpts } from 'mp4box.js';
 import { EventTool } from './event-tool';
 import { Log } from './log';
-import { createMetaBox } from './meta-box';
+//import { createMetaBox, createUserMetaBox } from './meta-box';
+import { createUserMetaBox } from './meta-box';
 import { workerTimer } from './worker-timer';
 import { createBoxFromDescription } from './box-utils';
 import { getCodecMap } from './codecmap-utils';
@@ -97,13 +98,14 @@ export function recodemux(opts: IRecodeMuxOpts): {
     moov: NonNullable<ISOFile['moov']>,
     tags: NonNullable<IRecodeMuxOpts['metaDataTags']>,
   ) => {
-    const udta = new BoxParser['box']['udta'],
-    meta = new BoxParser['box']['meta'],
-    udtaBox = moov.addBox(udta),
-    metaBox = udtaBox.addBox(meta);
+    //const udta = new BoxParser['box']['udta'],
+    //meta = new BoxParser['box']['meta'],
+    //udtaBox = moov.addBox(udta),
+    //metaBox = udtaBox.addBox(meta);
     
-    metaBox.data = createMetaBox(tags);
-    metaBox.size = metaBox.data.byteLength;
+    //metaBox.data = createMetaBox(tags);
+    //metaBox.size = metaBox.data.byteLength;
+    moov.addBox(createUserMetaBox(tags));
   };
 
   let moovReady = false;
@@ -567,6 +569,7 @@ export function chunk2MP4SampleOpts(
   };
 }
 
+/*
 function createVP9ConfDesc(decoderConfig: VideoDecoderConfig): ArrayBuffer {
   const codec = decoderConfig.codec; // e.g., "vp09.00.40.08"
   const codecParts = codec.split('.');
@@ -643,4 +646,4 @@ function createVP9ConfDesc(decoderConfig: VideoDecoderConfig): ArrayBuffer {
   view.setUint16(offset, codecIntializationDataSize);
 
   return buffer;
-}
+}*/
