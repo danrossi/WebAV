@@ -1,4 +1,4 @@
-import { BoxParser } from 'mp4box';
+import { BoxParser, Box } from 'mp4box';
 
 const createBoxHeader = (type: string, size: number): Uint8Array => {
   const buffer = new Uint8Array(8);
@@ -154,6 +154,11 @@ export function parseUserMetaBox(metaBox: any) {
 
 }
 
+/**
+ * Generate a user metadata box from a metadata object
+ * @param data metadata object
+ * @returns 
+ */
 export const createUserMetaBox = (data: Record<string, string>) => {
   const udtaBox = BoxParser['box']['udta'],
     metaBox = BoxParser['box']['meta'],
@@ -164,13 +169,8 @@ export const createUserMetaBox = (data: Record<string, string>) => {
   hdlr.handler = 'meta';
   hdlr.name = 'User metadata';
 
-
-
     const keysBox = meta.addBox(new BoxParser['box']['keys']),
     ilstBox = meta.addBox(new BoxParser['box']['ilst']);
-
-
-    //ilstBox.list = keysBox.keys = {};
 
     const keys: string[] =  Object.keys(data);
 
@@ -178,15 +178,7 @@ export const createUserMetaBox = (data: Record<string, string>) => {
         keysBox.keys[index] = key;
         const dataBox = new BoxParser['box']['data']
         dataBox.value = data[key];
-
-
-       // let languageString: string | null = "";
-       /// let myString: string | null;
-        //let valueFromSource: string | null = "";
-       // myString = valueFromSource ?? null;
-
-        dataBox.languageString = " ";
-        ilstBox.list[index] = dataBox;
+        ilstBox.list[index] = dataBox as Box;
     });
 
 

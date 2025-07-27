@@ -115,6 +115,8 @@ function createRecoderConf(inputMS: MediaStream, userConf: AVRecorderConf) {
     bitrate: 3e6,
     expectFPS: 30,
     videoCodec: 'avc1.42E032',
+    trackName: 'Track created with WebAV',
+    opusConfig: undefined,
     ...userConf,
   };
   const { streams, width, height, sampleRate, channelCount } =
@@ -126,11 +128,14 @@ function createRecoderConf(inputMS: MediaStream, userConf: AVRecorderConf) {
       height: height ?? 720,
       expectFPS: conf.expectFPS,
       codec: conf.videoCodec,
+      trackName: conf.trackName
     },
     audio: {
       codec: 'aac',
       sampleRate: sampleRate ?? 44100,
       channelCount: channelCount ?? 2,
+      trackName: conf.trackName,
+      opusConfig: conf.opusConfig
     },
     bitrate: conf.bitrate,
     streams,

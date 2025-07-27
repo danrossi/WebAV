@@ -222,7 +222,7 @@ async function concatStreamsToMP4BoxFile(
             const offsetCTS = type === 'video' ? vCTS : aCTS;
 
             samples.forEach((s) => {
-              outfile.addSample(trackId, s.data, {
+              outfile.addSample(trackId, s.data!, {
                 duration: s.duration,
                 dts: s.dts + offsetDTS,
                 cts: s.cts + offsetCTS,
@@ -288,7 +288,7 @@ function createMP4AudioSampleDecoder(
             type: s.is_sync ? 'key' : 'delta',
             timestamp: (1e6 * s.cts) / s.timescale,
             duration: (1e6 * s.duration) / s.timescale,
-            data: s.data,
+            data: s.data!,
           }),
         );
       });
@@ -309,7 +309,7 @@ function createMP4AudioSampleDecoder(
 // 音频编码与解码API有很大区别，
 // 是因为编码中途调用 AudioEncoder.flush ，会导致声音听起来卡顿
 function createMP4AudioSampleEncoder(
-  aeConf: Parameters<AudioEncoder['configure']>[0],
+  aeConf: Parameters<AudioDecoder['configure']>[0],
   onOutput: (s: ReturnType<typeof chunk2MP4SampleOpts>) => void,
 ) {
   const encoderConf = {
@@ -460,16 +460,16 @@ export function mixinMP4AndAudio(
             codec:
               safeAudioTrackConf.type === 'mp4a'
                 ? DEFAULT_AUDIO_CONF.codec
-                : safeAudioTrackConf.type,
-            numberOfChannels: safeAudioTrackConf.channel_count,
-            sampleRate: safeAudioTrackConf.samplerate,
+                : "opus",
+            numberOfChannels: safeAudioTrackConf.channel_count!,
+            sampleRate: safeAudioTrackConf.samplerate!,
           },
           (s) => outfile.addSample(aTrackId, s.data, s),
         );
       } else if (chunkType === 'samples') {
         const { id, type, samples } = data;
         if (type === 'video') {
-          samples.forEach((s) => outfile.addSample(id, s.data, s));
+          samples.forEach((s) => outfile.addSample(id, s.data!, s));
 
           if (!mp4HasAudio) await addInputAudio2Track(samples);
           return;

@@ -1,4 +1,5 @@
-import { createFile, MP4ArrayBuffer } from '@webav/mp4box2.js';
+import { createFile } from 'mp4box';
+import { MP4ArrayBuffer } from '@webav/mp4box.js';
 import { file, write } from 'opfs-tools';
 import { expect, test, vi } from 'vitest';
 import { MP4Clip } from '../mp4-clip';

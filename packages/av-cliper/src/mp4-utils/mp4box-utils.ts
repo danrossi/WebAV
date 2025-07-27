@@ -1,20 +1,16 @@
 import {
   BoxParser,
-  //BoxRegistry,
   createFile,
-  DataStream,
   ISOFile,
-  Endianness,
   BoxKind,
   Box,
   type IsoFileOptions,
   type Movie,
   type Sample,
-  //type SampleEntryFourCC
 } from 'mp4box';
-import { type MP4ArrayBuffer } from 'mp4box.js';
+import { type MP4ArrayBuffer } from '@webav/mp4box.js';
 
-import { codecToTypeMap, videoCodecToType } from '@webav/internal-utils';
+import { getCodecMap, writeBoxToStream } from '@webav/internal-utils';
 
 import { file } from 'opfs-tools';
 import { DEFAULT_AUDIO_CONF } from '../clips';
@@ -34,8 +30,8 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
     audioDecoderConf?: Parameters<AudioDecoder['configure']>[0];
   } = {};
   if (vTrack != null) {
-    const type = videoCodecToType(vTrack.codec);
-    const videoBoxes = getVideoBoxes(file.getTrackById(vTrack.id)),
+    const videoCodecMap = getCodecMap(vTrack.codec),
+    videoBoxes = getVideoBoxes(file.getTrackById(vTrack.id)),
     videoDesc = parseBoxToDesc(videoBoxes[0]);
     //const videoDesc = parseVideoCodecDesc(file.getTrackById(vTrack.id))?.buffer;
     /*const { descKey, type } = vTrack.codec.startsWith('avc1')
@@ -51,7 +47,7 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
         width: vTrack.video?.width,
         height: vTrack.video?.height,
         brands: info.brands,
-        type: type,
+        type: videoCodecMap.type,
         description_boxes: videoBoxes
         //description: videoDesc
         //[descKey]: videoDesc,
@@ -69,7 +65,8 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
   const aTrack = info.audioTracks[0];
   
   if (aTrack != null) {
-    const audioBoxes: Array<BoxKind> = getAudioBoxes(file.getTrackById(aTrack.id));
+    const audioCodecMap = getCodecMap(aTrack.codec),
+    audioBoxes: Array<BoxKind> = getAudioBoxes(file.getTrackById(aTrack.id));
 
     
     rs.audioTrackConf = {
@@ -77,7 +74,7 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
       samplerate: aTrack.audio?.sample_rate,
       channel_count: aTrack.audio?.channel_count,
       hdlr: 'soun',
-      type: codecToTypeMap.get(aTrack.codec),
+      type: audioCodecMap.type,
       description_boxes: audioBoxes
     };
     rs.audioDecoderConf = {
@@ -95,9 +92,12 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
 
 // track is H.264, H.265 or VPX.
 function parseBoxToDesc(box: Box): ArrayBuffer {
-  const stream = new DataStream(undefined, 0, Endianness.BIG_ENDIAN);
-  box.write(stream);
+  /*const stream = new DataStream(undefined, 0, Endianness.BIG_ENDIAN);
+  box.write(stream);*/
+  const stream = writeBoxToStream(box);
   return new Uint8Array(stream.buffer.slice(8)).buffer; // Remove the box header.
+
+  
 
   /*
     const avcC = new DataStream();

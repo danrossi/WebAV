@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest';
-import mp4box from '@webav/mp4box.js';
+import { createFile } from 'mp4box';
 import { autoReadStream, file2stream } from '@webav/internal-utils';
 import { file, write } from 'opfs-tools';
 import { quickParseMP4File } from '../mp4box-utils';
@@ -10,7 +10,7 @@ beforeAll(() => {
 
 describe('file2stream', () => {
   test('enqueue data to stream', () => {
-    const file = mp4box.createFile();
+    const file = createFile();
     file.boxes.push(
       // @ts-expect-error
       ...Array(5)
@@ -40,7 +40,7 @@ describe('file2stream', () => {
   });
 
   test('stop stream', () => {
-    const file = mp4box.createFile();
+    const file = createFile();
     // @ts-expect-error
     file.boxes = Array(5)
       .fill(0)
@@ -57,7 +57,7 @@ describe('file2stream', () => {
   });
 
   test('cancel stream', () => {
-    const file = mp4box.createFile();
+    const file = createFile();
     // @ts-expect-error
     file.boxes = Array(5)
       .fill(0)

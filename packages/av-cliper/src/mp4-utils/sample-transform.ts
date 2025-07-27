@@ -1,10 +1,15 @@
 import {
   createFile,
-  MP4ArrayBuffer,
-  MP4File,
+  ISOFile,
   type Movie,
   type Sample,
 } from 'mp4box';
+
+import {
+  MP4ArrayBuffer
+} from '@webav/mp4box.js';
+
+type SampleEntryType = 'video' | 'audio';
 
 /**
  * 将原始字节流转换成 Sample 流
@@ -13,11 +18,11 @@ export class SampleTransform {
   readable: ReadableStream<
     | {
         chunkType: 'ready';
-        data: { info: Movie; file: MP4File };
+        data: { info: Movie; file: ISOFile };
       }
     | {
         chunkType: 'samples';
-        data: { id: number; type: 'video' | 'audio'; samples: Sample[] };
+        data: { id: number; type: SampleEntryType; samples: Sample[] };
       }
   >;
 
@@ -46,16 +51,14 @@ export class SampleTransform {
 
           const releasedCnt: Record<number, number> = {};
           file.onSamples = (id, type, samples) => {
+            let entryType: SampleEntryType = type as SampleEntryType;
+
             ctrl.enqueue({
               chunkType: 'samples',
-              data: { id, type, samples: samples.map((s) => ({ ...s })) },
+              data: { id: id, type: entryType, samples: samples.map((s) => ({ ...s })) },
             });
             releasedCnt[id] = (releasedCnt[id] ?? 0) + samples.length;
             file.releaseUsedSamples(id, releasedCnt[id]);
-          };
-
-          file.onFlush = () => {
-            ctrl.close();
           };
         },
         cancel: () => {
@@ -84,7 +87,7 @@ export class SampleTransform {
       close: () => {
         file.flush();
         file.stop();
-        file.onFlush?.();
+        this.readable._ctrl.close();
       },
     });
   }

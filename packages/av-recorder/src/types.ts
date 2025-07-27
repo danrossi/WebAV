@@ -11,11 +11,14 @@ export interface IRecordeOpts {
     height: number;
     expectFPS: number;
     codec: string;
+    trackName: string;
   };
   audio: {
     codec: 'opus' | 'aac';
     sampleRate: number;
     channelCount: number;
+    trackName: string;
+    opusConfig: OpusEncoderConfig | undefined;
   } | null;
   bitrate: number;
   streams: IStream;

@@ -607,7 +607,7 @@ function normalizeTimescale(
   delta = 0,
   sampleType: 'video' | 'audio',
   isFirstSync?: boolean,
-) {
+): ExtSample {
   // todo: perf 丢弃多余字段，小尺寸对象性能更好
   let offset = s.offset;
 
@@ -638,7 +638,7 @@ function normalizeTimescale(
     duration: (s.duration / s.timescale) * 1e6,
     timescale: 1e6,
     // 音频数据量可控，直接保存在内存中
-    data: sampleType === 'video' ? null : s.data,
+    data: sampleType === 'video' ? undefined : s.data,
   };
 }
 
@@ -1354,11 +1354,11 @@ function decodeGoP(
 
 function idrNALUOffset(
   u8Arr: Uint8Array<ArrayBuffer> | undefined,
-  entry: SampleEntry,
+  entry: SampleGroupEntry | SampleEntry,
   startOffset: number,
 ) {
-
-  if (entry.type !== 'avc1' && entry.type !== 'hvc1' || !u8Arr) return 0;
+  
+  if (!("type" in entry) || entry.type !== 'avc1' && entry.type !== 'hvc1' || !u8Arr) return 0;
 
   const dv = new DataView(u8Arr.buffer);
   let i = startOffset;

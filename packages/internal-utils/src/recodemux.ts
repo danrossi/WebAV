@@ -1,5 +1,5 @@
 import { createFile, Box, BoxKind, ISOFile, IsoFileOptions } from 'mp4box';
-import { SampleOpts } from 'mp4box.js';
+import { SampleOpts } from '@webav/mp4box.js';
 import { EventTool } from './event-tool';
 import { Log } from './log';
 //import { createMetaBox, createUserMetaBox } from './meta-box';
@@ -40,7 +40,7 @@ interface IRecodeMuxOpts {
    */
   audio: {
     codec: 'opus' | 'aac';
-    opusConfig: object;
+    opusConfig: OpusEncoderConfig | undefined;
     sampleRate: number;
     channelCount: number;
     trackName: string;
