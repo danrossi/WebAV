@@ -4,7 +4,8 @@ export { autoReadStream, file2stream } from './stream-utils';
 export { recodemux, chunk2MP4SampleOpts } from './recodemux';
 export { Log } from './log';
 export { getCodecMap } from './codecmap-utils';
-export { createBoxFromDescription, writeBoxToStream } from './box-utils';
+export { createBoxFromDescription, writeBoxToStream, boxToDecoderConfig } from './box-utils';
+export { parseUserMetaBox, createUserMetaBox } from './meta-box';
 
 /**
  * 函数节流

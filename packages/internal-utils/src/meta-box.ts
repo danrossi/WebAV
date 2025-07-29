@@ -1,4 +1,5 @@
-import { BoxParser, Box } from 'mp4box';
+import { BoxParser, Box, ISOFile, AllIdentifiers } from 'mp4box';
+import { Log } from './log';
 
 const createBoxHeader = (type: string, size: number): Uint8Array => {
   const buffer = new Uint8Array(8);
@@ -127,28 +128,57 @@ export const createMetaBox = (data: Record<string, string>): Uint8Array => {
 
 
 /**
+ * Convert int key to bytes for parsing fourcc code
+ * @param num 
+ * @returns 
+ */
+function intToByteArrayBigEndian(fourcc:number) {
+  const buffer = new ArrayBuffer(4);
+  const view = new DataView(buffer);
+  view.setInt32(0, fourcc, false);
+
+  return new Uint8Array(buffer);
+}
+
+
+
+/**
  * Parse metadata from a metabox using the keys box as the object keys
  * @param metaBox 
  * @returns 
  */
 
-export function parseUserMetaBox(metaBox: any) {
+export function parseUserMetaBox(mp4boxFile: ISOFile) {
   let metadata = {};
-  
-  const ilstBox = metaBox.ilst,
-    keysBox = metaBox.keys;
 
-  const data = typeof BoxParser['box']['data'];
+  const metaBox = mp4boxFile.getBox('meta' as AllIdentifiers) as any;
 
-  if (ilstBox && keysBox) {
-    const handlerName = metaBox.hdlr.handler;
+  if (metaBox) {
+    
+    const ilstBox = metaBox.ilst;
 
-    metadata = Object.fromEntries(Object.entries(ilstBox.list).map(entry => {
-      const key = entry[0], dataBox: any = entry[1] as typeof data;
-      return [metaBox.keys.keys[key].replace(handlerName, ""), dataBox.value]
-    }));
+    if (ilstBox) {
+      const data = typeof BoxParser['box']['data'],
+      keysBox = metaBox.keys,
+      handlerName = metaBox.hdlr.handler;
+
+      if (keysBox) {
+        metadata = Object.fromEntries(Object.entries(ilstBox.list).map(entry => {
+          const key = entry[0], dataBox: any = entry[1] as typeof data;
+          return [keysBox.keys[key].replace(handlerName, ""), dataBox.value]
+        }));
+      } else {
+        metadata = Object.fromEntries(Object.entries(ilstBox.list).map(entry => {
+          const key = entry[0], dataBox: any = entry[1] as typeof data,
+          chars = intToByteArrayBigEndian(parseInt(key));
+          return [String.fromCharCode(chars[0], chars[1], chars[2], chars[3]), dataBox.value]
+        }));
+      }
+    }
 
   }
+
+
 
   return metadata;
 
@@ -172,6 +202,9 @@ export const createUserMetaBox = (data: Record<string, string>) => {
     const keysBox = meta.addBox(new BoxParser['box']['keys']),
     ilstBox = meta.addBox(new BoxParser['box']['ilst']);
 
+    keysBox.keys = {};
+    ilstBox.list = {};
+
     const keys: string[] =  Object.keys(data);
 
     keys.forEach( (key: string, index: number) => {
@@ -180,6 +213,9 @@ export const createUserMetaBox = (data: Record<string, string>) => {
         dataBox.value = data[key];
         ilstBox.list[index] = dataBox as Box;
     });
+
+
+    Log.info('ilstBox:', ilstBox.list);
 
 
 

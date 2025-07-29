@@ -1,4 +1,4 @@
-import{ Endianness, DataStream, ISOFile, AllIdentifiers } from 'mp4box';
+import{ Endianness, DataStream, ISOFile, AllIdentifiers, createFile, MP4BoxBuffer } from 'mp4box';
 
 /**
  * 自动读取流并处理每个数据块。
@@ -174,4 +174,21 @@ function unsafeReleaseMP4BoxFile(file: ISOFile) {
   }
   file.mdats = [];
   file.moofs = [];
+}
+
+/**
+ * Export stream of mp4 file and create a new mp4 file instance
+ * @param file 
+ * @returns 
+ */
+export function copyToNewFile(file: ISOFile): ISOFile {
+  const ds = new DataStream();
+  ds.endianness = Endianness.BIG_ENDIAN;
+  file.write(ds);
+
+  const newMP4 = createFile(true);
+  newMP4.appendBuffer(MP4BoxBuffer.fromArrayBuffer(ds.buffer, 0), true);
+  newMP4.flush();
+
+  return newMP4;
 }

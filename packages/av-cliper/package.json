@@ -28,6 +28,7 @@
   "scripts": {
     "dev": "vite demo --config vite.config.ts",
     "test": "vitest",
+    "test2": "vitest -t 'vp9'",
     "ci:test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "build": "vite build",

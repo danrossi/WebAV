@@ -78,6 +78,7 @@ export class MP4Clip implements IClip {
     height: 0,
     audioSampleRate: 0,
     audioChanCount: 0,
+    userMetadata: {}
   };
 
   get meta() {
@@ -109,6 +110,8 @@ export class MP4Clip implements IClip {
   #videoSamples: ExtSample[] = [];
 
   #audioSamples: ExtSample[] = [];
+
+  #userMetadata: Record<string, string> = {};
 
   #videoFrameFinder: VideoFrameFinder | null = null;
   #audioFrameFinder: AudioFrameFinder | null = null;
@@ -161,11 +164,12 @@ export class MP4Clip implements IClip {
           ? mp4FileToSamples(source, this.#opts)
           : Promise.resolve(source)
     ).then(
-      async ({ videoSamples, audioSamples, decoderConf, headerBoxPos }) => {
+      async ({ videoSamples, audioSamples, decoderConf, headerBoxPos, userMetadata }) => {
         this.#videoSamples = videoSamples;
         this.#audioSamples = audioSamples;
         this.#decoderConf = decoderConf;
         this.#headerBoxPos = headerBoxPos;
+        this.#userMetadata = userMetadata;
 
         const { videoFrameFinder, audioFrameFinder } = genDecoder(
           {
@@ -187,7 +191,9 @@ export class MP4Clip implements IClip {
         this.#videoFrameFinder = videoFrameFinder;
         this.#audioFrameFinder = audioFrameFinder;
 
-        this.#meta = genMeta(decoderConf, videoSamples, audioSamples);
+        this.#log.info(this.#userMetadata);
+
+        this.#meta = genMeta(decoderConf, videoSamples, audioSamples, userMetadata);
         this.#log.info('MP4Clip meta:', this.#meta);
         return { ...this.#meta };
       },
@@ -356,6 +362,7 @@ export class MP4Clip implements IClip {
         audioSamples: preAudioSlice ?? [],
         decoderConf: this.#decoderConf,
         headerBoxPos: this.#headerBoxPos,
+        userMetadata: this.#userMetadata,
       },
       this.#opts,
     );
@@ -366,6 +373,7 @@ export class MP4Clip implements IClip {
         audioSamples: postAudioSlice ?? [],
         decoderConf: this.#decoderConf,
         headerBoxPos: this.#headerBoxPos,
+        userMetadata: this.#userMetadata,
       },
       this.#opts,
     );
@@ -383,6 +391,7 @@ export class MP4Clip implements IClip {
         audioSamples: [...this.#audioSamples],
         decoderConf: this.#decoderConf,
         headerBoxPos: this.#headerBoxPos,
+        userMetadata: this.#userMetadata,
       },
       this.#opts,
     );
@@ -409,6 +418,7 @@ export class MP4Clip implements IClip {
             audio: null,
           },
           headerBoxPos: this.#headerBoxPos,
+          userMetadata: this.#userMetadata,
         },
         this.#opts,
       );
@@ -427,6 +437,7 @@ export class MP4Clip implements IClip {
             video: null,
           },
           headerBoxPos: this.#headerBoxPos,
+          userMetadata: this.#userMetadata,
         },
         this.#opts,
       );
@@ -452,6 +463,7 @@ function genMeta(
   decoderConf: MP4DecoderConf,
   videoSamples: ExtSample[],
   audioSamples: ExtSample[],
+  userMetadata: Record<string,string>
 ) {
   const meta = {
     duration: 0,
@@ -459,6 +471,7 @@ function genMeta(
     height: 0,
     audioSampleRate: 0,
     audioChanCount: 0,
+    userMetadata: {}
   };
   if (decoderConf.video != null && videoSamples.length > 0) {
     meta.width = decoderConf.video.codedWidth ?? 0;
@@ -484,6 +497,8 @@ function genMeta(
     aDuration = lastSampele.cts + lastSampele.duration;
   }
   meta.duration = Math.max(vDuration, aDuration);
+
+  meta.userMetadata = userMetadata;
 
   return meta;
 }
@@ -525,6 +540,7 @@ async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
   let videoSamples: ExtSample[] = [];
   let audioSamples: ExtSample[] = [];
   let headerBoxPos: Array<{ start: number | undefined; size: number }> = [];
+  let userMetadata: Record<string,string> = {};
 
   let videoDeltaTS = -1;
   let audioDeltaTS = -1;
@@ -537,6 +553,9 @@ async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
       headerBoxPos.push({ start: ftyp.start, size: ftyp.size });
       const moov = data.mp4boxFile.moov!;
       headerBoxPos.push({ start: moov.start, size: moov.size });
+
+      //extracted user metadata
+      userMetadata = data.userMetadata;
 
       let { videoDecoderConf: vc, audioDecoderConf: ac } = extractFileConfig(
         data.mp4boxFile,
@@ -551,6 +570,7 @@ async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
         'mp4BoxFile moov ready',
         {
           ...data.info,
+          ...data.userMetadata,
           tracks: null,
           videoTracks: null,
           audioTracks: null,
@@ -599,6 +619,7 @@ async function mp4FileToSamples(otFile: OPFSToolFile, opts: MP4ClipOpts = {}) {
     audioSamples,
     decoderConf,
     headerBoxPos,
+    userMetadata,
   };
 }
 

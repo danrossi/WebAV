@@ -1,9 +1,9 @@
-import { createFile, Box, BoxKind, ISOFile, IsoFileOptions } from 'mp4box';
+import { createFile, Box, BoxKind, ISOFile, IsoFileOptions, BoxParser } from 'mp4box';
 import { SampleOpts } from '@webav/mp4box.js';
 import { EventTool } from './event-tool';
 import { Log } from './log';
 //import { createMetaBox, createUserMetaBox } from './meta-box';
-import { createUserMetaBox } from './meta-box';
+import { createMetaBox } from './meta-box';
 import { workerTimer } from './worker-timer';
 import { createBoxFromDescription } from './box-utils';
 import { getCodecMap } from './codecmap-utils';
@@ -98,14 +98,16 @@ export function recodemux(opts: IRecodeMuxOpts): {
     moov: NonNullable<ISOFile['moov']>,
     tags: NonNullable<IRecodeMuxOpts['metaDataTags']>,
   ) => {
-    //const udta = new BoxParser['box']['udta'],
-    //meta = new BoxParser['box']['meta'],
-    //udtaBox = moov.addBox(udta),
-    //metaBox = udtaBox.addBox(meta);
-    
-    //metaBox.data = createMetaBox(tags);
-    //metaBox.size = metaBox.data.byteLength;
-    moov.addBox(createUserMetaBox(tags));
+    const udta = new BoxParser['box']['udta'],
+      meta = new BoxParser['box']['meta'],
+      udtaBox = moov.addBox(udta),
+      metaBox = udtaBox.addBox(meta);
+
+    metaBox.data = createMetaBox(tags);
+    metaBox.size = metaBox.data.byteLength;
+    Log.info('Metadata tags:', tags);
+
+    //moov.addBox(createUserMetaBox(tags));
   };
 
   let moovReady = false;
@@ -219,8 +221,8 @@ function encodeVideoTrack(
       if (opts.codec.startsWith('avc1')) {
         fixChromeConstraintSetFlagsBug(desc);
       } //else if (opts.codec.startsWith('vp09') && meta.decoderConfig) {
-        //videoTrackOpts.type = 'vp09' as SampleEntryFourCC;
-        //desc = createVP9ConfDesc(meta.decoderConfig);
+      //videoTrackOpts.type = 'vp09' as SampleEntryFourCC;
+      //desc = createVP9ConfDesc(meta.decoderConfig);
       //}
       /*const decorderConfKey = (
         [
@@ -232,6 +234,9 @@ function encodeVideoTrack(
       if (decorderConfKey != null && desc != null) {
         videoTrackOpts[decorderConfKey] = desc;
       }*/
+
+      Log.info("box name ", codecInfoMapEntry.boxName);
+      Log.info(meta.decoderConfig);
 
       //create the single video box and add it to the description directly.
       //mp4box doesn't have a helper decoder config for vp09 or av01
@@ -457,12 +462,19 @@ function encodeAudioTrack(
         // 某些设备不会输出 description
         const desc = meta?.decoderConfig?.description as ArrayBuffer;
 
-        let boxes: Array<Box> = []; 
+        let boxes: Array<Box> = [];
 
         //create box for esds for aac or dOps for Opus
         //requires to be a list of boxes as Opus requires two boxes
         const esdsDopsBox = createBoxFromDescription(desc, codecInfoMapEntry.boxName);
-        boxes.push(esdsDopsBox);
+
+        if (esdsDopsBox) {
+          boxes.push(esdsDopsBox);
+
+          Log.info("box", esdsDopsBox);
+        }
+
+
 
         trackId = mp4File.addTrack({
           ...audioTrackOpts,

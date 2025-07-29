@@ -3,22 +3,18 @@ import {
   createFile,
   ISOFile,
   BoxKind,
-  Box,
   type IsoFileOptions,
   type Movie,
   type Sample,
 } from 'mp4box';
 import { type MP4ArrayBuffer } from '@webav/mp4box.js';
 
-import { getCodecMap, writeBoxToStream } from '@webav/internal-utils';
+import { getCodecMap, parseUserMetaBox, boxToDecoderConfig } from '@webav/internal-utils';
 
 import { file } from 'opfs-tools';
 import { DEFAULT_AUDIO_CONF } from '../clips';
 
 const trakBox = new BoxParser['box'].trak;
-  //esdsBoxType = new BoxParser['box'].esds,
- // dOpsType = new BoxParser['box'].dOps;
-
 
 
 export function extractFileConfig(file: ISOFile, info: Movie) {
@@ -32,7 +28,7 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
   if (vTrack != null) {
     const videoCodecMap = getCodecMap(vTrack.codec),
     videoBoxes = getVideoBoxes(file.getTrackById(vTrack.id)),
-    videoDesc = parseBoxToDesc(videoBoxes[0]);
+    videoDesc = boxToDecoderConfig(videoBoxes[0]);
     //const videoDesc = parseVideoCodecDesc(file.getTrackById(vTrack.id))?.buffer;
     /*const { descKey, type } = vTrack.codec.startsWith('avc1')
       ? { descKey: 'avcDecoderConfigRecord', type: 'avc1' }
@@ -90,21 +86,6 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
   return rs;
 }
 
-// track is H.264, H.265 or VPX.
-function parseBoxToDesc(box: Box): ArrayBuffer {
-  /*const stream = new DataStream(undefined, 0, Endianness.BIG_ENDIAN);
-  box.write(stream);*/
-  const stream = writeBoxToStream(box);
-  return new Uint8Array(stream.buffer.slice(8)).buffer; // Remove the box header.
-
-  
-
-  /*
-    const avcC = new DataStream();
-  avcC.endianness = Endianness.BIG_ENDIAN;
-  mp4.getBox('avcC').write(avcC);*/
-}
-
 function getVideoBoxes(track: typeof trakBox): Array<BoxKind> {
 
   const trak = track.mdia.minf.stbl.stsd.entries
@@ -148,7 +129,7 @@ function getAudioBoxes(track: typeof trakBox): Array<BoxKind> {
  */
 export async function quickParseMP4File(
   reader: Awaited<ReturnType<ReturnType<typeof file>['createReader']>>,
-  onReady: (data: { mp4boxFile: ISOFile; info: Movie }) => void,
+  onReady: (data: { mp4boxFile: ISOFile; info: Movie, userMetadata: Record<string, string> }) => void,
   onSamples: (
     id: number,
     sampleType: unknown | 'video' | 'audio',
@@ -157,7 +138,9 @@ export async function quickParseMP4File(
 ) {
   const mp4boxFile = createFile(false);
   mp4boxFile.onReady = (info: Movie) => {
-    onReady({ mp4boxFile, info });
+    const userMetadata = parseUserMetaBox(mp4boxFile);
+
+    onReady({ mp4boxFile, info, userMetadata });
     const vTrackId = info.videoTracks[0]?.id;
     if (vTrackId != null)
       mp4boxFile.setExtractionOptions(vTrackId, 'video', { nbSamples: 100 });
