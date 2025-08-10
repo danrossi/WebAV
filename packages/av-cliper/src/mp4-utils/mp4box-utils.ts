@@ -1,21 +1,25 @@
+import { type MP4ArrayBuffer } from '@webav/mp4box.js';
 import {
+  BoxKind,
   BoxParser,
   createFile,
   ISOFile,
-  BoxKind,
   type IsoFileOptions,
   type Movie,
   type Sample,
 } from 'mp4box';
-import { type MP4ArrayBuffer } from '@webav/mp4box.js';
 
-import { getCodecMap, parseUserMetaBox, boxToDecoderConfig } from '@webav/internal-utils';
+import {
+  boxToDecoderConfig,
+  getCodecMap,
+  Log,
+  parseUserMetaBox,
+} from '@webav/internal-utils';
 
 import { file } from 'opfs-tools';
 import { DEFAULT_AUDIO_CONF } from '../clips';
 
-const trakBox = new BoxParser['box'].trak;
-
+const trakBox = new BoxParser['box'].trak();
 
 export function extractFileConfig(file: ISOFile, info: Movie) {
   const vTrack = info.videoTracks[0];
@@ -27,28 +31,30 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
   } = {};
   if (vTrack != null) {
     const videoCodecMap = getCodecMap(vTrack.codec),
-    videoBoxes = getVideoBoxes(file.getTrackById(vTrack.id)),
-    videoDesc = boxToDecoderConfig(videoBoxes[0]);
+      videoBoxes = getVideoBoxes(file.getTrackById(vTrack.id)),
+      videoDesc = boxToDecoderConfig(videoBoxes[0]);
     //const videoDesc = parseVideoCodecDesc(file.getTrackById(vTrack.id))?.buffer;
     /*const { descKey, type } = vTrack.codec.startsWith('avc1')
       ? { descKey: 'avcDecoderConfigRecord', type: 'avc1' }
       : vTrack.codec.startsWith('hvc1')
         ? { descKey: 'hevcDecoderConfigRecord', type: 'hvc1' }
         : { descKey: '', type: '' };*/
-  
+
+    Log.info(videoBoxes[0]);
+
     //if (descKey !== '') {
-      rs.videoTrackConf = {
-        timescale: vTrack.timescale,
-        duration: vTrack.duration,
-        width: vTrack.video?.width,
-        height: vTrack.video?.height,
-        brands: info.brands,
-        type: videoCodecMap.type,
-        description_boxes: videoBoxes
-        //description: videoDesc
-        //[descKey]: videoDesc,
-      };
-   // }
+    rs.videoTrackConf = {
+      timescale: vTrack.timescale,
+      duration: vTrack.duration,
+      width: vTrack.video?.width,
+      height: vTrack.video?.height,
+      brands: info.brands,
+      type: videoCodecMap.type,
+      description_boxes: videoBoxes,
+      //description: videoDesc
+      //[descKey]: videoDesc,
+    };
+    // }
 
     rs.videoDecoderConf = {
       codec: vTrack.codec,
@@ -59,27 +65,27 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
   }
 
   const aTrack = info.audioTracks[0];
-  
+
   if (aTrack != null) {
     const audioCodecMap = getCodecMap(aTrack.codec),
-    audioBoxes: Array<BoxKind> = getAudioBoxes(file.getTrackById(aTrack.id));
+      audioBoxes: Array<BoxKind> = getAudioBoxes(file.getTrackById(aTrack.id));
 
-    
     rs.audioTrackConf = {
       timescale: aTrack.timescale,
       samplerate: aTrack.audio?.sample_rate,
       channel_count: aTrack.audio?.channel_count,
       hdlr: 'soun',
       type: audioCodecMap.type,
-      description_boxes: audioBoxes
+      description_boxes: audioBoxes,
     };
     rs.audioDecoderConf = {
       //codec: aTrack.codec.startsWith('mp4a')
       //  ? DEFAULT_AUDIO_CONF.codec
       //  : aTrack.codec,
       codec: aTrack.codec,
-      numberOfChannels: aTrack.audio?.channel_count ?? DEFAULT_AUDIO_CONF.channelCount,
-      sampleRate: aTrack.audio?.sample_rate ?? DEFAULT_AUDIO_CONF.sampleRate
+      numberOfChannels:
+        aTrack.audio?.channel_count ?? DEFAULT_AUDIO_CONF.channelCount,
+      sampleRate: aTrack.audio?.sample_rate ?? DEFAULT_AUDIO_CONF.sampleRate,
       //...(esdsBox == null ? {} : parseAudioInfo4ESDSBox(esdsBox)),
     };
   }
@@ -87,19 +93,17 @@ export function extractFileConfig(file: ISOFile, info: Movie) {
 }
 
 function getVideoBoxes(track: typeof trakBox): Array<BoxKind> {
-
   const trak = track.mdia.minf.stbl.stsd.entries
-  .flat()
-  .find(trak => trak.isVideo())
+    .flat()
+    .find((trak) => trak.isVideo());
 
-    return trak?.boxes as Array<BoxKind>;
+  return trak?.boxes as Array<BoxKind>;
 }
 
 function getAudioBoxes(track: typeof trakBox): Array<BoxKind> {
-
   const trak = track.mdia.minf.stbl.stsd.entries
-  .flat()
-  .find(trak => trak.isVideo())
+    .flat()
+    .find((trak) => trak.isAudio());
 
   return trak?.boxes as Array<BoxKind>;
 }
@@ -129,7 +133,11 @@ function getAudioBoxes(track: typeof trakBox): Array<BoxKind> {
  */
 export async function quickParseMP4File(
   reader: Awaited<ReturnType<ReturnType<typeof file>['createReader']>>,
-  onReady: (data: { mp4boxFile: ISOFile; info: Movie, userMetadata: Record<string, string> }) => void,
+  onReady: (data: {
+    mp4boxFile: ISOFile;
+    info: Movie;
+    userMetadata: Record<string, string>;
+  }) => void,
   onSamples: (
     id: number,
     sampleType: unknown | 'video' | 'audio',
